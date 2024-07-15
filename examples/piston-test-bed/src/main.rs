@@ -5,13 +5,13 @@ use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
 use mandala::{CubicBezierSegment, EpochBuilder, Mandala, Path, Point2D, Segment, SegmentRule};
+use piston::{Button, PressEvent};
 
 pub struct App {
     gl: GlGraphics,
     mandala: Mandala,
     drawing: Vec<Path>,
     tick: bool,
-    scale: f64,
 }
 
 const SIZE: u32 = 800;
@@ -113,7 +113,9 @@ impl App {
         });
     }
 
-    fn update(&mut self, args: &UpdateArgs) {
+    fn update(&mut self, args: &UpdateArgs) {}
+
+    fn btn(&mut self, args: Button) {
         self.mandala.draw_epoch(|last| {
             //
             let mut epoch = EpochBuilder::default()
@@ -144,8 +146,6 @@ impl App {
                 .map(|e| e.render_paths())
                 .unwrap_or_default(),
         );
-
-        self.scale += 0.01;
     }
 }
 
@@ -166,7 +166,6 @@ fn main() {
         mandala: Mandala::new((SIZE - 20) as f64),
         drawing: vec![],
         tick: true,
-        scale: 1.0,
     };
 
     let mut events = Events::new(EventSettings::new());
@@ -177,6 +176,10 @@ fn main() {
 
         if let Some(args) = e.update_args() {
             app.update(&args);
+        }
+
+        if let Some(args) = e.press_args() {
+            app.btn(args)
         }
     }
 }
