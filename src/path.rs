@@ -135,6 +135,13 @@ impl Path {
     pub fn rotate(&self, by: Angle<Float>) -> Self {
         Self(LinkedList::from_iter(self.0.iter().map(|s| s.rotate(by))))
     }
+
+    pub fn from(&self) -> Point2D<Float> {
+        self.0.back().map(|s| s.from()).unwrap_or_default()
+    }
+    pub fn to(&self) -> Point2D<Float> {
+        self.0.front().map(|s| s.to()).unwrap_or_default()
+    }
 }
 
 impl IntoIterator for Path {
@@ -257,6 +264,72 @@ mod tests {
                 to: Point2D::new(2.0, 2.0),
             })
         });
-        assert_eq!(path.0.len(), 2);
+        path.draw_next(|last| {
+            assert_eq!(last.to(), Point2D::new(2.0, 2.0));
+            Segment::Arc(SvgArc {
+                from: Point2D::new(2.0, 2.0),
+                to: Point2D::new(3.0, 1.0),
+                radii: Vector2D::new(1.0, 1.0),
+                x_rotation: Angle::degrees(40.0),
+                flags: Default::default(),
+            })
+        });
+        path.draw_next(|last| {
+            assert_eq!(last.to(), Point2D::new(3.0, 1.0));
+            Segment::Triangle(Triangle {
+                a: Point2D::new(3.0, 1.0),
+                b: Point2D::new(4.0, 1.0),
+                c: Point2D::new(3.5, 2.0),
+            })
+        });
+        path.draw_next(|last| {
+            assert_eq!(last.to(), Point2D::new(3.5, 2.0));
+            Segment::QuadraticCurve(QuadraticBezierSegment {
+                from: Point2D::new(3.5, 2.0),
+                ctrl: Point2D::new(4.0, 3.0),
+                to: Point2D::new(5.0, 2.0),
+            })
+        });
+        path.draw_next(|last| {
+            assert_eq!(last.to(), Point2D::new(5.0, 2.0));
+            Segment::CubicCurve(CubicBezierSegment {
+                from: Point2D::new(5.0, 2.0),
+                ctrl1: Point2D::new(6.0, 3.0),
+                ctrl2: Point2D::new(7.0, 1.0),
+                to: Point2D::new(8.0, 2.0),
+            })
+        });
+        assert_eq!(path.0.len(), 6);
+    }
+
+    #[test]
+    fn test_path_from_and_to() {
+        let line = Segment::Line(LineSegment {
+            from: Point2D::new(0.0, 0.0),
+            to: Point2D::new(1.0, 1.0),
+        });
+        let mut path = Path::new(line);
+
+        path.draw_next(|last| {
+            assert_eq!(last.to(), Point2D::new(1.0, 1.0));
+            Segment::Arc(SvgArc {
+                from: Point2D::new(1.0, 1.0),
+                to: Point2D::new(2.0, 0.0),
+                radii: Vector2D::new(1.0, 1.0),
+                x_rotation: Angle::degrees(40.0),
+                flags: Default::default(),
+            })
+        });
+        path.draw_next(|last| {
+            assert_eq!(last.to(), Point2D::new(2.0, 0.0));
+            Segment::Triangle(Triangle {
+                a: Point2D::new(2.0, 0.0),
+                b: Point2D::new(3.0, 0.0),
+                c: Point2D::new(2.5, 1.0),
+            })
+        });
+
+        assert_eq!(path.from(), Point2D::new(0.0, 0.0));
+        assert_eq!(path.to(), Point2D::new(2.5, 1.0));
     }
 }

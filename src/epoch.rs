@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::Neg;
 
 use derive_builder::Builder;
 use euclid::{
@@ -56,34 +56,31 @@ impl Epoch {
         let radius = self.radius - self.breadth;
 
         for i in 1..=self.segments {
-            let start_angle = (i - 1) as f64 * angle_step;
+            let start_angle = (i - 1) as f64 * angle_step - (angle_step / 2.0);
 
             let translate_by = Vector2D::new(
                 self.center.x + radius * start_angle.cos(),
                 self.center.y + radius * start_angle.sin(),
             );
 
+            let tilt = Angle::radians(start_angle);
+
             match &self.segment_rule {
                 SegmentRule::Path(p) => {
                     paths.push(
-                        p.rotate(Angle::radians(start_angle).add(Angle::pi()))
+                        p.rotate(tilt)
+                            .rotate(Angle::frac_pi_2().neg())
                             .translate(translate_by),
                     );
                 }
                 SegmentRule::EveryNth(p, nth) => {
                     if i % nth == 0 {
-                        paths.push(
-                            p.rotate(Angle::radians(start_angle).add(Angle::pi()))
-                                .translate(translate_by),
-                        );
+                        paths.push(p.rotate(tilt).translate(translate_by));
                     }
                 }
                 SegmentRule::OddEven(odd_p, even_p) => {
                     let p = if i % 2 == 0 { even_p } else { odd_p };
-                    paths.push(
-                        p.rotate(Angle::radians(start_angle).add(Angle::pi()))
-                            .translate(translate_by),
-                    );
+                    paths.push(p.rotate(tilt).translate(translate_by));
                 }
                 SegmentRule::None => break,
             }

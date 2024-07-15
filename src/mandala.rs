@@ -3,8 +3,8 @@ use euclid::default::{Box2D, Point2D, Size2D};
 use crate::{Epoch, EpochBuilder, Float, Path, SegmentRule};
 
 pub struct Mandala {
-    bounds: Box2D<Float>,
-    epochs: Vec<Epoch>,
+    pub bounds: Box2D<Float>,
+    pub epochs: Vec<Epoch>,
 }
 
 impl Mandala {
