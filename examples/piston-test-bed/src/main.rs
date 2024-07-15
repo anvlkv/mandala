@@ -4,9 +4,7 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
-use mandala::{
-    CubicBezierSegment, EpochBuilder, LineSegment, Mandala, Path, Point2D, Segment, SegmentRule,
-};
+use mandala::{CubicBezierSegment, EpochBuilder, Mandala, Path, Point2D, Segment, SegmentRule};
 
 pub struct App {
     gl: GlGraphics,
@@ -27,7 +25,7 @@ impl App {
 
         // let square = rectangle::square(0.0, 0.0, 50.0);
         // let rotation = self.rotation;
-        // let (x, y) = (args.window_size[0] / 2.0, args.window_size[1] / 2.0);
+        let (x, y) = (args.window_size[0] / 2.0, args.window_size[1] / 2.0);
         // let (x, y) = (0.0, 0.0);
 
         self.gl.draw(args.viewport(), |c, gl| {
@@ -43,10 +41,10 @@ impl App {
                 self.tick = true;
             }
 
-            let transform = transform.scale(self.scale, self.scale).trans(
-                args.window_size[0] / 2.0 - (args.window_size[0] / 2.0) * self.scale,
-                args.window_size[1] / 2.0 - (args.window_size[1] / 2.0) * self.scale,
-            );
+            // let transform = c
+            //     .transform
+            //     .scale(self.scale, self.scale)
+            //     .trans(x - x * self.scale, y - y * self.scale);
 
             // line(WHITE, 1.0, [0.0, 0.0, 400.0, 400.0], transform, gl)
 
@@ -127,60 +125,12 @@ impl App {
                 .unwrap();
 
             epoch.draw_segment(|min, max| {
-                let mut path = Path::new(Segment::CubicCurve(CubicBezierSegment {
-                    from: Point2D::new(0.0, 0.0),
+                let path = Path::new(Segment::CubicCurve(CubicBezierSegment {
+                    from: min.min(),
                     ctrl1: Point2D::new(min.max_x() / 2.0, min.max_y()),
                     ctrl2: Point2D::new(max.max_x() / 2.0, max.max_y()),
-                    to: Point2D::new(min.width(), 0.0),
+                    to: Point2D::new(min.max_x(), min.min_y()),
                 }));
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(0.0, 0.0),
-                    })
-                });
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(0.0, min.max_y()),
-                    })
-                });
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(min.max_x(), min.max_y()),
-                    })
-                });
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(min.max_x(), min.min_y()),
-                    })
-                });
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(max.max_x(), max.min_y()),
-                    })
-                });
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(max.max_x(), max.max_y()),
-                    })
-                });
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(max.min_x(), max.max_y()),
-                    })
-                });
-                path.draw_next(|last| {
-                    Segment::Line(LineSegment {
-                        from: last.to(),
-                        to: Point2D::new(max.min_x(), max.min_y()),
-                    })
-                });
 
                 SegmentRule::Path(path)
             });

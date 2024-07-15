@@ -56,7 +56,7 @@ impl Epoch {
         let radius = self.radius - self.breadth;
 
         for i in 1..=self.segments {
-            let start_angle = (i - 1) as f64 * angle_step - (angle_step / 2.0);
+            let start_angle = (i - 1) as f64 * angle_step;
 
             let translate_by = Vector2D::new(
                 self.center.x + radius * start_angle.cos(),
@@ -90,44 +90,29 @@ impl Epoch {
     }
 
     /// Given the bounds draw segment path
-    pub fn draw_segment<F>(&mut self, draw: F)
+    pub fn draw_segment<F>(&mut self, mut draw: F)
     where
-        F: Fn(Rect<Float>, Rect<Float>) -> SegmentRule,
+        F: FnMut(Rect<Float>, Rect<Float>) -> SegmentRule,
     {
         let outer_arc = Arc {
             center: self.center,
             radii: Vector2D::new(self.radius, self.radius),
-            start_angle: Angle::zero(),
+            start_angle: Angle::frac_pi_4(),
             sweep_angle: Angle::radians(Angle::<Float>::two_pi().radians / self.segments as f64),
             x_rotation: Angle::zero(),
         };
         let inner_arc = Arc {
             center: self.center,
             radii: Vector2D::new(self.radius - self.breadth, self.radius - self.breadth),
-            start_angle: Angle::zero(),
+            start_angle: Angle::frac_pi_4(),
             sweep_angle: outer_arc.sweep_angle,
             x_rotation: Angle::zero(),
         };
 
-        let min_len = inner_arc.bounding_box().width();
-
-        let max_len = outer_arc.bounding_box().width();
-
-        let min_rect = Rect::from_points([
-            Point2D::new(0.0, 0.0),
-            Point2D::new(0.0, self.breadth),
-            Point2D::new(min_len, 0.0),
-            Point2D::new(min_len, self.breadth),
-        ]);
-
-        let max_rect = Rect::from_points([
-            Point2D::new(0.0, 0.0),
-            Point2D::new(0.0, self.breadth),
-            Point2D::new(max_len, 0.0),
-            Point2D::new(max_len, self.breadth),
-        ]);
-
-        self.segment_rule = draw(min_rect, max_rect);
+        self.segment_rule = draw(
+            inner_arc.bounding_box().to_rect(),
+            outer_arc.bounding_box().to_rect(),
+        );
     }
 }
 

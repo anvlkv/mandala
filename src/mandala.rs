@@ -31,9 +31,9 @@ impl Mandala {
         self.epochs.iter().flat_map(|e| e.render_paths()).collect()
     }
 
-    pub fn draw_epoch<F>(&mut self, draw: F)
+    pub fn draw_epoch<F>(&mut self, mut draw: F)
     where
-        F: Fn(&Epoch) -> Epoch,
+        F: FnMut(&Epoch) -> Epoch,
     {
         self.epochs.push(draw(self.epochs.last().unwrap()))
     }
