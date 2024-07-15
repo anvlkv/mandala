@@ -4,3 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+derive_builder = "0.20.0"
+euclid = { version = "0.22.10", features = ["mint"] }
+lyon_geom = "1.0.5"
+
+[workspace]
+members = ["./examples/piston-test-bed"]

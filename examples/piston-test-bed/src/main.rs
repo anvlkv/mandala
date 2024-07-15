@@ -1,43 +1,134 @@
 use glutin_window::GlutinWindow as Window;
+use graphics::glyph_cache::rusttype::GlyphCache;
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 use piston::window::WindowSettings;
 
+use mandala::{CubicBezierSegment, EpochBuilder, Mandala, Path, Point2D, Segment, SegmentRule};
+
 pub struct App {
-    gl: GlGraphics, // OpenGL drawing backend.
-    rotation: f64,  // Rotation for the square.
+    gl: GlGraphics,
+    mandala: Mandala,
+    drawing: Vec<Path>,
+    tick: bool,
 }
 
 impl App {
     fn render(&mut self, args: &RenderArgs) {
         use graphics::*;
 
-        const GREEN: [f32; 4] = [0.0, 1.0, 0.0, 1.0];
-        const RED: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+        const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+        const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 0.7];
 
-        let square = rectangle::square(0.0, 0.0, 50.0);
-        let rotation = self.rotation;
-        let (x, y) = (args.window_size[0] / 2.0, args.window_size[1] / 2.0);
+        // let square = rectangle::square(0.0, 0.0, 50.0);
+        // let rotation = self.rotation;
+        // let (x, y) = (args.window_size[0] / 2.0, args.window_size[1] / 2.0);
+        // let (x, y) = (0.0, 0.0);
 
         self.gl.draw(args.viewport(), |c, gl| {
             // Clear the screen.
-            clear(GREEN, gl);
+            clear(BLACK, gl);
 
-            let transform = c
-                .transform
-                .trans(x, y)
-                .rot_rad(rotation)
-                .trans(-25.0, -25.0);
+            let transform = c.transform.trans(10.0, 10.0);
 
-            // Draw a box rotating around the middle of the screen.
-            rectangle(RED, square, transform, gl);
+            if self.tick {
+                circle_arc(WHITE, 2.0, 0.0, 5.0, [0.0, 0.0, 8.0, 8.0], c.transform, gl);
+                self.tick = false;
+            } else {
+                self.tick = true;
+            }
+
+            // line(WHITE, 1.0, [0.0, 0.0, 400.0, 400.0], transform, gl)
+
+            for p in self.drawing.clone() {
+                for s in p.into_iter() {
+                    match s {
+                        mandala::Segment::Line(l) => line(
+                            WHITE,
+                            1.0,
+                            [l.from.x, l.from.y, l.to.x, l.to.y],
+                            transform,
+                            gl,
+                        ),
+                        mandala::Segment::Arc(l) => {
+                            l.for_each_flattened(0.1, &mut |f| {
+                                line(
+                                    WHITE,
+                                    1.0,
+                                    [f.from.x, f.from.y, f.to.x, f.to.y],
+                                    transform,
+                                    gl,
+                                );
+                            })
+                            // let arc = l.to_arc();
+                            // let bx = arc.bounding_range_x();
+                            // let by = arc.bounding_range_y();
+
+                            // circle_arc(
+                            //     WHITE,
+                            //     1.0,
+                            //     arc.start_angle.radians,
+                            //     arc.end_angle().radians,
+                            //     [bx.0, by.0, bx.1, by.1],
+                            //     transform,
+                            //     gl,
+                            // )
+                        }
+                        mandala::Segment::Triangle(l) => {
+                            line(WHITE, 1.0, [l.a.x, l.a.y, l.b.x, l.b.y], transform, gl);
+                            line(WHITE, 1.0, [l.b.x, l.b.y, l.c.x, l.c.y], transform, gl);
+                        }
+                        mandala::Segment::QuadraticCurve(l) => {
+                            l.for_each_flattened(0.1, &mut |f| {
+                                line(
+                                    WHITE,
+                                    1.0,
+                                    [f.from.x, f.from.y, f.to.x, f.to.y],
+                                    transform,
+                                    gl,
+                                );
+                            })
+                        }
+                        mandala::Segment::CubicCurve(l) => l.for_each_flattened(0.1, &mut |f| {
+                            line(
+                                WHITE,
+                                1.0,
+                                [f.from.x, f.from.y, f.to.x, f.to.y],
+                                transform,
+                                gl,
+                            );
+                        }),
+                    }
+                }
+            }
         });
     }
 
     fn update(&mut self, args: &UpdateArgs) {
-        // Rotate 2 radians per second.
-        self.rotation += 2.0 * args.dt;
+        self.mandala.draw_epoch(|last| {
+            //
+            let mut epoch = EpochBuilder::default()
+                .radius(last.radius / 2.0 + last.radius / 4.0)
+                .breadth(last.radius / 4.0)
+                .segments(last.segments + 2)
+                .center(last.center)
+                .build()
+                .unwrap();
+
+            epoch.draw_segment(|min, max| {
+                let path = Path::new(Segment::CubicCurve(CubicBezierSegment {
+                    from: Point2D::new(0.0, 0.0),
+                    ctrl1: Point2D::new(min.max_x() / 2.0, min.max_y()),
+                    ctrl2: Point2D::new(max.max_x() / 2.0, max.max_y()),
+                    to: Point2D::new(max.width(), 0.0),
+                }));
+                SegmentRule::Path(path)
+            });
+
+            epoch
+        });
+        self.drawing = self.mandala.render_drawing();
     }
 }
 
@@ -46,16 +137,20 @@ fn main() {
     let opengl = OpenGL::V3_2;
 
     // Create a Glutin window.
-    let mut window: Window = WindowSettings::new("spinning-square", [200, 200])
+    let mut window: Window = WindowSettings::new("spinning-square", [400, 400])
         .graphics_api(opengl)
         .exit_on_esc(true)
         .build()
         .unwrap();
 
+    let size = window.window.inner_size();
+
     // Create a new game and run it.
     let mut app = App {
         gl: GlGraphics::new(opengl),
-        rotation: 0.0,
+        mandala: Mandala::new(380.0),
+        drawing: vec![],
+        tick: true,
     };
 
     let mut events = Events::new(EventSettings::new());
