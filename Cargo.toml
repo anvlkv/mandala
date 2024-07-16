@@ -2,6 +2,7 @@
 name = "mandala"
 version = "0.1.0"
 edition = "2021"
+authors = ["a.nvlkv <a.nvlkv@pm.me>"]
 
 [dependencies]
 derive_builder = "0.20.0"

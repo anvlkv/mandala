@@ -1,11 +1,11 @@
-use std::ops::{Add, Div, Neg, Sub};
+use std::ops::{Add, Div, Neg};
 
 use derive_builder::Builder;
 use euclid::{
     default::{Point2D, Rect, Vector2D},
     Angle,
 };
-use lyon_geom::{Arc, ArcFlags, SvgArc};
+use lyon_geom::Arc;
 
 use crate::{Float, Path, Segment};
 

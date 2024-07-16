@@ -1,7 +1,7 @@
 use glutin_window::GlutinWindow as Window;
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
-use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
+use piston::input::{RenderArgs, RenderEvent};
 use piston::window::WindowSettings;
 
 use mandala::{CubicBezierSegment, EpochBuilder, Mandala, Path, Point2D, Segment, SegmentRule};
@@ -23,13 +23,7 @@ impl App {
         const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
         const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 0.7];
 
-        // let square = rectangle::square(0.0, 0.0, 50.0);
-        // let rotation = self.rotation;
-        let (x, y) = (args.window_size[0] / 2.0, args.window_size[1] / 2.0);
-        // let (x, y) = (0.0, 0.0);
-
         self.gl.draw(args.viewport(), |c, gl| {
-            // Clear the screen.
             clear(BLACK, gl);
 
             let transform = c.transform.trans(10.0, 10.0);
@@ -40,13 +34,6 @@ impl App {
             } else {
                 self.tick = true;
             }
-
-            // let transform = c
-            //     .transform
-            //     .scale(self.scale, self.scale)
-            //     .trans(x - x * self.scale, y - y * self.scale);
-
-            // line(WHITE, 1.0, [0.0, 0.0, 400.0, 400.0], transform, gl)
 
             for (i, p) in self.drawing.clone().into_iter().enumerate() {
                 for (j, s) in p.into_iter().enumerate() {
@@ -113,9 +100,7 @@ impl App {
         });
     }
 
-    fn update(&mut self, args: &UpdateArgs) {}
-
-    fn btn(&mut self, args: Button) {
+    fn btn(&mut self, _: Button) {
         self.mandala.draw_epoch(|last| {
             //
             let mut epoch = EpochBuilder::default()
@@ -160,7 +145,6 @@ fn main() {
         .build()
         .unwrap();
 
-    // Create a new game and run it.
     let mut app = App {
         gl: GlGraphics::new(opengl),
         mandala: Mandala::new((SIZE - 20) as f64),
@@ -172,10 +156,6 @@ fn main() {
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
             app.render(&args);
-        }
-
-        if let Some(args) = e.update_args() {
-            app.update(&args);
         }
 
         if let Some(args) = e.press_args() {

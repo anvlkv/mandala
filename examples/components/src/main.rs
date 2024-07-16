@@ -1,5 +1,3 @@
-use std::ops::Neg;
-
 use glutin_window::GlutinWindow as Window;
 use mandala::{
     Angle, Arc, ArcFlags, CubicBezierSegment, Epoch, LineSegment, Path, Point2D,
@@ -7,7 +5,7 @@ use mandala::{
 };
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
-use piston::input::{RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
+use piston::input::{RenderArgs, RenderEvent};
 use piston::window::WindowSettings;
 
 pub struct App {
@@ -85,8 +83,6 @@ impl App {
             }
         });
     }
-
-    fn update(&mut self, args: &UpdateArgs) {}
 }
 
 fn main() {
@@ -326,10 +322,6 @@ fn main() {
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
             app.render(&args);
-        }
-
-        if let Some(args) = e.update_args() {
-            app.update(&args);
         }
     }
 }

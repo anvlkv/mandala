@@ -1,4 +1,4 @@
-use euclid::default::{Box2D, Point2D, Size2D};
+use euclid::default::{Box2D, Size2D};
 
 use crate::{Epoch, EpochBuilder, Float, Path, SegmentRule};
 

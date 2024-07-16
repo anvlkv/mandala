@@ -1,6 +1,6 @@
 use std::{
     collections::{linked_list::IntoIter, LinkedList},
-    ops::{Add, AddAssign, Sub},
+    ops::Add,
 };
 
 use euclid::{
