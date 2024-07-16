@@ -89,6 +89,7 @@ impl Segment {
         match self {
             Segment::Line(s) => Segment::Line(s.clone().transformed(&Rotation2D::new(by))),
             Segment::Arc(s) => {
+                assert!(!s.is_straight_line(), "arc is a straight line... {s:#?}");
                 let arc = s.to_arc();
                 let bbox = arc.bounding_box();
 

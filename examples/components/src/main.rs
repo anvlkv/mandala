@@ -1,7 +1,7 @@
 use glutin_window::GlutinWindow as Window;
 use mandala::{
-    Angle, Arc, ArcFlags, CubicBezierSegment, Epoch, LineSegment, Path, Point2D,
-    QuadraticBezierSegment, Segment, SegmentRule, SvgArc, Triangle, Vector2D,
+    Angle, Arc, ArcFlags, CubicBezierSegment, Epoch, EpochBuilder, LineSegment, Mandala, Path,
+    Point2D, QuadraticBezierSegment, Segment, SegmentRule, SvgArc, Triangle, Vector2D,
 };
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
@@ -312,6 +312,55 @@ fn main() {
     });
 
     drawing.extend(epoch.render_paths());
+
+    let mut mndl = Mandala::new(380.0);
+
+    for i in 1..=25 {
+        mndl.draw_epoch(|last| {
+            let mut ep = EpochBuilder::default()
+                .center(last.center)
+                .radius(last.radius - 10.0)
+                .breadth(10.0)
+                .segments(30 - i + 2)
+                .build()
+                .unwrap();
+
+            match i.rem_euclid(3) {
+                0 => {
+                    ep.draw_segment(|min, max| {
+                        SegmentRule::Path(Path::new(Segment::Triangle(Triangle {
+                            a: min.min(),
+                            b: max.center(),
+                            c: Point2D::new(min.max_x(), min.min_y()),
+                        })))
+                    });
+                }
+                _ => {
+                    ep.draw_segment(|min, max| {
+                        SegmentRule::Path(Path::new(Segment::Arc(SvgArc {
+                            from: min.min(),
+                            to: Point2D::new(min.max_x(), min.min_y()),
+                            radii: Vector2D::splat(
+                                min.center().distance_to(max.center()).max(30.0),
+                            ),
+                            x_rotation: Angle::zero(),
+                            flags: ArcFlags {
+                                large_arc: true,
+                                sweep: true,
+                            },
+                        })))
+                    });
+                }
+            }
+            ep
+        });
+    }
+
+    drawing.extend(
+        mndl.render_drawing()
+            .into_iter()
+            .map(|p| p.translate(Vector2D::new(200.0, 300.0))),
+    );
 
     let mut app = App {
         gl: GlGraphics::new(opengl),

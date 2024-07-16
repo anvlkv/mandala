@@ -121,16 +121,21 @@ impl Epoch {
             self.center.y + inner_radius * start_angle.radians.sin(),
         );
 
-        self.segment_rule = draw(
-            inner_arc
-                .bounding_box()
-                .to_rect()
-                .translate(inner_translate_by.neg()),
-            outer_arc
-                .bounding_box()
-                .to_rect()
-                .translate(outer_translate_by.neg()),
+        let min_rect = inner_arc
+            .bounding_box()
+            .to_rect()
+            .translate(inner_translate_by.neg());
+        let max_rect = outer_arc
+            .bounding_box()
+            .to_rect()
+            .translate(outer_translate_by.neg());
+
+        assert!(
+            !min_rect.is_empty() && !max_rect.is_empty(),
+            "epoch has zero drawing area... {self:#?}"
         );
+
+        self.segment_rule = draw(min_rect, max_rect);
     }
 }
 
