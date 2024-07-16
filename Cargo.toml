@@ -9,4 +9,4 @@ euclid = { version = "0.22.10", features = ["mint"] }
 lyon_geom = "1.0.5"
 
 [workspace]
-members = ["./examples/piston-test-bed"]
+members = ["./examples/piston-test-bed", "examples/components"]

@@ -1,11 +1,11 @@
-use std::ops::Neg;
+use std::ops::{Add, Div, Neg, Sub};
 
 use derive_builder::Builder;
 use euclid::{
     default::{Point2D, Rect, Vector2D},
     Angle,
 };
-use lyon_geom::Arc;
+use lyon_geom::{Arc, ArcFlags, SvgArc};
 
 use crate::{Float, Path, Segment};
 
@@ -41,7 +41,8 @@ impl Epoch {
             radii: Vector2D::new(radius, radius),
             start_angle: Angle::zero(),
             sweep_angle: Angle::two_pi(),
-            x_rotation: Angle::zero(),
+            // appears as 0 length when not rotated...
+            x_rotation: Angle::two_pi(),
         };
         paths.push(Path::new(Segment::Arc(ring.to_svg_arc())));
 
@@ -63,23 +64,19 @@ impl Epoch {
                 self.center.y + radius * start_angle.sin(),
             );
 
-            let tilt = Angle::radians(start_angle);
+            let tilt = Angle::radians(start_angle).add(Angle::frac_pi_2().neg());
 
             match &self.segment_rule {
                 SegmentRule::Path(p) => {
-                    paths.push(
-                        p.rotate(tilt)
-                            .rotate(Angle::frac_pi_2().neg())
-                            .translate(translate_by),
-                    );
+                    paths.push(p.rotate(tilt).translate(translate_by));
                 }
                 SegmentRule::EveryNth(p, nth) => {
-                    if i % nth == 0 {
+                    if i.rem_euclid(*nth) == 0 {
                         paths.push(p.rotate(tilt).translate(translate_by));
                     }
                 }
                 SegmentRule::OddEven(odd_p, even_p) => {
-                    let p = if i % 2 == 0 { even_p } else { odd_p };
+                    let p = if i.rem_euclid(2) == 0 { even_p } else { odd_p };
                     paths.push(p.rotate(tilt).translate(translate_by));
                 }
                 SegmentRule::None => break,
@@ -94,29 +91,50 @@ impl Epoch {
     where
         F: FnMut(Rect<Float>, Rect<Float>) -> SegmentRule,
     {
+        let sweep_angle = Angle::<Float>::two_pi().div(self.segments as f64);
+        let start_angle = Angle::frac_pi_2();
+        let x_rotation = sweep_angle.div(2.0).neg();
+
         let outer_arc = Arc {
             center: self.center,
             radii: Vector2D::new(self.radius, self.radius),
-            start_angle: Angle::frac_pi_4(),
-            sweep_angle: Angle::radians(Angle::<Float>::two_pi().radians / self.segments as f64),
-            x_rotation: Angle::zero(),
-        };
-        let inner_arc = Arc {
-            center: self.center,
-            radii: Vector2D::new(self.radius - self.breadth, self.radius - self.breadth),
-            start_angle: Angle::frac_pi_4(),
-            sweep_angle: outer_arc.sweep_angle,
-            x_rotation: Angle::zero(),
+            start_angle,
+            sweep_angle,
+            x_rotation,
         };
 
+        let inner_radius = self.radius - self.breadth;
+        let inner_arc = Arc {
+            center: self.center,
+            radii: Vector2D::new(inner_radius, inner_radius),
+            start_angle,
+            sweep_angle,
+            x_rotation,
+        };
+
+        let outer_translate_by = Vector2D::new(
+            self.center.x + inner_radius * start_angle.radians.cos(),
+            self.center.y + inner_radius * start_angle.radians.sin(),
+        );
+        let inner_translate_by = Vector2D::new(
+            self.center.x + inner_radius * start_angle.radians.cos(),
+            self.center.y + inner_radius * start_angle.radians.sin(),
+        );
+
         self.segment_rule = draw(
-            inner_arc.bounding_box().to_rect(),
-            outer_arc.bounding_box().to_rect(),
+            inner_arc
+                .bounding_box()
+                .to_rect()
+                .translate(inner_translate_by.neg()),
+            outer_arc
+                .bounding_box()
+                .to_rect()
+                .translate(outer_translate_by.neg()),
         );
     }
 }
 
-/// How to draw one segment
+/// How to draw segments
 ///
 /// Paths are zero based
 #[derive(Debug, Clone)]

@@ -12,4 +12,6 @@ pub use euclid::{
     default::{Point2D, Vector2D},
     Angle,
 };
-pub use lyon_geom::{CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle};
+pub use lyon_geom::{
+    Arc, ArcFlags, CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle,
+};

@@ -1,10 +1,13 @@
-use std::collections::{linked_list::IntoIter, LinkedList};
+use std::{
+    collections::{linked_list::IntoIter, LinkedList},
+    ops::{Add, AddAssign, Sub},
+};
 
 use euclid::{
     default::{Point2D, Translation2D, Vector2D},
     Angle, Rotation2D,
 };
-use lyon_geom::{CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle};
+use lyon_geom::{Arc, CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle};
 
 use crate::Float;
 
@@ -85,10 +88,25 @@ impl Segment {
     pub fn rotate(&self, by: Angle<Float>) -> Self {
         match self {
             Segment::Line(s) => Segment::Line(s.clone().transformed(&Rotation2D::new(by))),
-            Segment::Arc(s) => Segment::Arc(SvgArc {
-                x_rotation: by,
-                ..s.clone()
-            }),
+            Segment::Arc(s) => {
+                let arc = s.to_arc();
+                let bbox = arc.bounding_box();
+
+                let center = LineSegment {
+                    from: bbox.min,
+                    to: bbox.max,
+                }
+                .transformed(&Rotation2D::new(by))
+                .mid_point();
+                let x_rotation = arc.x_rotation.add(by);
+
+                let arc_r = Arc {
+                    x_rotation,
+                    center,
+                    ..arc
+                };
+                Segment::Arc(arc_r.to_svg_arc())
+            }
             Segment::Triangle(s) => Segment::Triangle(s.clone().transform(&Rotation2D::new(by))),
             Segment::QuadraticCurve(s) => {
                 Segment::QuadraticCurve(s.clone().transformed(&Rotation2D::new(by)))
