@@ -2,7 +2,7 @@ use std::ops::{Add, Div, Neg};
 
 use derive_builder::Builder;
 use euclid::{
-    default::{Point2D, Rect, Vector2D},
+    default::{Point2D, Rect, Size2D, Vector2D},
     Angle, Scale,
 };
 use lyon_geom::{Arc, LineSegment};
@@ -153,6 +153,12 @@ impl Epoch {
 
         self.segment_rule.scale(scale);
     }
+
+    /// translate the epoch and its segments
+    pub fn translate(&mut self, by: Vector2D<Float>) {
+        self.segment_rule.translate(by);
+        self.center = self.center.add_size(&Size2D::new(by.x, by.y));
+    }
 }
 
 /// How to draw segments
@@ -175,10 +181,23 @@ impl SegmentRule {
     pub fn scale(&mut self, scale: Float) {
         match self {
             SegmentRule::Path(p) => p.scale(scale),
-            SegmentRule::EveryNth(p1, _) => p1.scale(scale),
+            SegmentRule::EveryNth(p, _) => p.scale(scale),
             SegmentRule::OddEven(p1, p2) => {
                 p1.scale(scale);
                 p2.scale(scale);
+            }
+            SegmentRule::None => {}
+        }
+    }
+
+    /// translate the segment
+    pub fn translate(&mut self, by: Vector2D<Float>) {
+        match self {
+            SegmentRule::Path(p) => *p = p.translate(by),
+            SegmentRule::EveryNth(p, _) => *p = p.translate(by),
+            SegmentRule::OddEven(p1, p2) => {
+                *p1 = p1.translate(by);
+                *p2 = p2.translate(by);
             }
             SegmentRule::None => {}
         }
@@ -187,7 +206,7 @@ impl SegmentRule {
 
 #[cfg(test)]
 mod tests {
-    use euclid::Point2D;
+    use euclid::{Point2D, Vector2D};
     use lyon_geom::QuadraticBezierSegment;
 
     use crate::{Epoch, Path, Segment, SegmentRule};
@@ -211,6 +230,28 @@ mod tests {
         let rendered = epoch.render_paths();
 
         assert_eq!(rendered.len(), 11);
+    }
+
+    #[test]
+    fn test_translate() {
+        let mut epoch = Epoch {
+            segments: 10,
+            radius: 20.0,
+            breadth: 5.0,
+            center: Point2D::new(3.0, 3.0),
+            segment_rule: SegmentRule::Path(Path::new(Segment::QuadraticCurve(
+                QuadraticBezierSegment {
+                    from: Point2D::new(0.0, 0.0),
+                    to: Point2D::new(3.0, 0.0),
+                    ctrl: Point2D::new(1.75, 2.0),
+                },
+            ))),
+        };
+
+        let translation = Vector2D::new(5.0, 5.0);
+        epoch.translate(translation);
+
+        assert_eq!(epoch.center, Point2D::new(8.0, 8.0));
     }
 
     #[test]

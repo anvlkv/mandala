@@ -1,4 +1,4 @@
-use euclid::default::{Box2D, Size2D};
+use euclid::default::{Box2D, Size2D, Vector2D};
 
 use crate::{Epoch, EpochBuilder, Float, Path, SegmentRule};
 
@@ -58,11 +58,19 @@ impl Mandala {
 
         self.bounds = new_bounds;
     }
+
+    /// translate the mandala and all its contents
+    pub fn translate(&mut self, by: Vector2D<Float>) {
+        self.bounds = self.bounds.translate(by);
+        for ep in self.epochs.iter_mut() {
+            ep.translate(by);
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use euclid::Point2D;
+    use euclid::{Point2D, Vector2D};
     use lyon_geom::LineSegment;
 
     use crate::{Mandala, Path, Segment};
@@ -129,6 +137,18 @@ mod tests {
         assert_eq!(mandala.epochs[1].radius, 100.0);
         assert_eq!(mandala.epochs[1].breadth, 10.0);
     }
+
+    #[test]
+    fn test_translate() {
+        let mut mandala = Mandala::new(200.0);
+        let translation = Vector2D::new(100.0, 100.0);
+        mandala.translate(translation);
+        assert_eq!(mandala.bounds.min.x, 100.0);
+        assert_eq!(mandala.bounds.min.y, 100.0);
+        assert_eq!(mandala.bounds.max.x, 300.0);
+        assert_eq!(mandala.bounds.max.y, 300.0);
+    }
+
     #[test]
     fn new() {
         _ = Mandala::new(200.0);
