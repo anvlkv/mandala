@@ -5,7 +5,7 @@ use std::{
 
 use euclid::{
     default::{Point2D, Translation2D, Vector2D},
-    Angle, Rotation2D,
+    Angle, Rotation2D, Scale,
 };
 use lyon_geom::{Arc, CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle};
 
@@ -14,16 +14,81 @@ use crate::Float;
 #[derive(Debug, Clone)]
 pub struct Path(LinkedList<Segment>);
 
+impl Path {
+    /// given the first segment create new path
+    pub fn new(first: Segment) -> Self {
+        Self(LinkedList::from_iter(vec![first]))
+    }
+
+    /// draw next segment of a continuoous path based on the last one
+    pub fn draw_next<F>(&mut self, draw: F)
+    where
+        F: Fn(&Segment) -> Segment,
+    {
+        let last = self.0.front().expect("at least one element");
+
+        let next = draw(last);
+
+        assert_eq!(
+            last.to(),
+            next.from(),
+            "same path seggments must be continuous"
+        );
+
+        self.0.push_front(next);
+    }
+
+    /// total length of all path segments
+    pub fn length(&self) -> Float {
+        self.0.iter().fold(0.0, |l, segment| l + segment.length())
+    }
+
+    /// startingg point of the path
+    pub fn from(&self) -> Point2D<Float> {
+        self.0.back().map(|s| s.from()).unwrap_or_default()
+    }
+
+    /// end point of the path
+    pub fn to(&self) -> Point2D<Float> {
+        self.0.front().map(|s| s.to()).unwrap_or_default()
+    }
+
+    /// translate all segments
+    pub fn translate(&self, by: Vector2D<Float>) -> Self {
+        Self(LinkedList::from_iter(
+            self.0.iter().map(|s| s.translate(by)),
+        ))
+    }
+
+    /// rotate all segments
+    pub fn rotate(&self, by: Angle<Float>) -> Self {
+        Self(LinkedList::from_iter(self.0.iter().map(|s| s.rotate(by))))
+    }
+
+    /// scale all path segments
+    pub fn scale(&mut self, scale: Float) {
+        for s in self.0.iter_mut() {
+            s.scale(scale);
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Segment {
+    /// staright line
     Line(LineSegment<Float>),
+    /// arc
     Arc(SvgArc<Float>),
+    /// triangle
     Triangle(Triangle<Float>),
+    /// quadratic curve
     QuadraticCurve(QuadraticBezierSegment<Float>),
+    /// cubic curv
     CubicCurve(CubicBezierSegment<Float>),
 }
 
 impl Segment {
+    /// length of the segment
     pub fn length(&self) -> Float {
         match self {
             Segment::Line(s) => s.length(),
@@ -43,6 +108,7 @@ impl Segment {
         }
     }
 
+    /// start point
     pub fn from(&self) -> Point2D<Float> {
         match self {
             Segment::Line(s) => s.from,
@@ -53,6 +119,7 @@ impl Segment {
         }
     }
 
+    /// end point
     pub fn to(&self) -> Point2D<Float> {
         match self {
             Segment::Line(s) => s.to,
@@ -63,6 +130,7 @@ impl Segment {
         }
     }
 
+    /// translate the segment
     pub fn translate(&self, by: Vector2D<Float>) -> Self {
         match self {
             Segment::Line(s) => Segment::Line(s.clone().translate(by)),
@@ -85,6 +153,7 @@ impl Segment {
         }
     }
 
+    /// rotate the segment
     pub fn rotate(&self, by: Angle<Float>) -> Self {
         match self {
             Segment::Line(s) => Segment::Line(s.clone().transformed(&Rotation2D::new(by))),
@@ -117,49 +186,34 @@ impl Segment {
             }
         }
     }
-}
 
-impl Path {
-    pub fn new(first: Segment) -> Self {
-        Self(LinkedList::from_iter(vec![first]))
-    }
-
-    pub fn draw_next<F>(&mut self, draw: F)
-    where
-        F: Fn(&Segment) -> Segment,
-    {
-        let last = self.0.front().expect("at least one element");
-
-        let next = draw(last);
-
-        assert_eq!(
-            last.to(),
-            next.from(),
-            "same path seggments must be continuous"
-        );
-
-        self.0.push_front(next);
-    }
-
-    pub fn length(&self) -> Float {
-        self.0.iter().fold(0.0, |l, segment| l + segment.length())
-    }
-
-    pub fn translate(&self, by: Vector2D<Float>) -> Self {
-        Self(LinkedList::from_iter(
-            self.0.iter().map(|s| s.translate(by)),
-        ))
-    }
-
-    pub fn rotate(&self, by: Angle<Float>) -> Self {
-        Self(LinkedList::from_iter(self.0.iter().map(|s| s.rotate(by))))
-    }
-
-    pub fn from(&self) -> Point2D<Float> {
-        self.0.back().map(|s| s.from()).unwrap_or_default()
-    }
-    pub fn to(&self) -> Point2D<Float> {
-        self.0.front().map(|s| s.to()).unwrap_or_default()
+    /// scale the segment
+    pub fn scale(&mut self, scale: Float) {
+        match self {
+            Segment::Line(l) => {
+                *l = l.transformed(&Scale::new(scale));
+            }
+            Segment::Arc(l) => {
+                let arc = l.to_arc();
+                let bbox = arc.bounding_box();
+                let center = LineSegment {
+                    from: bbox.min,
+                    to: bbox.max,
+                }
+                .transformed(&Scale::new(scale))
+                .mid_point();
+                let radii = Vector2D::new(arc.radii.x * scale, arc.radii.y * scale);
+                let arc_r = Arc {
+                    radii,
+                    center,
+                    ..arc
+                };
+                *l = arc_r.to_svg_arc();
+            }
+            Segment::Triangle(l) => *l = l.transform(&Scale::new(scale)),
+            Segment::QuadraticCurve(l) => *l = l.transformed(&Scale::new(scale)),
+            Segment::CubicCurve(l) => *l = l.transformed(&Scale::new(scale)),
+        }
     }
 }
 
@@ -178,6 +232,64 @@ mod tests {
     use euclid::{Angle, Vector2D};
 
     use super::*;
+
+    #[test]
+    fn test_path_scale() {
+        let line = Segment::Line(LineSegment {
+            from: Point2D::new(0.0, 0.0),
+            to: Point2D::new(1.0, 1.0),
+        });
+        let mut path = Path::new(line);
+
+        path.scale(2.0);
+
+        let scaled_line = path.0.front().unwrap();
+        match scaled_line {
+            Segment::Line(s) => {
+                assert_eq!(s.from, Point2D::new(0.0, 0.0));
+                assert_eq!(s.to, Point2D::new(2.0, 2.0));
+            }
+            _ => panic!("Expected a line segment"),
+        }
+    }
+
+    #[test]
+    fn test_segment_scale() {
+        let mut line = Segment::Line(LineSegment {
+            from: Point2D::new(0.0, 0.0),
+            to: Point2D::new(1.0, 1.0),
+        });
+
+        line.scale(2.0);
+
+        match line {
+            Segment::Line(s) => {
+                assert_eq!(s.from, Point2D::new(0.0, 0.0));
+                assert_eq!(s.to, Point2D::new(2.0, 2.0));
+            }
+            _ => panic!("Expected a line segment"),
+        }
+    }
+
+    #[test]
+    fn test_arc_segment_scale() {
+        let mut arc = Segment::Arc(SvgArc {
+            from: Point2D::new(1.0, 1.0),
+            to: Point2D::new(2.0, 0.0),
+            radii: Vector2D::new(1.0, 1.0),
+            x_rotation: Angle::degrees(40.0),
+            flags: Default::default(),
+        });
+
+        arc.scale(2.0);
+
+        match arc {
+            Segment::Arc(s) => {
+                assert_eq!(s.radii, Vector2D::new(2.0, 2.0));
+            }
+            _ => panic!("Expected an arc segment"),
+        }
+    }
 
     #[test]
     fn test_path_length_with_multiple_segments() {

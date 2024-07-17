@@ -3,9 +3,9 @@ use std::ops::{Add, Div, Neg};
 use derive_builder::Builder;
 use euclid::{
     default::{Point2D, Rect, Vector2D},
-    Angle,
+    Angle, Scale,
 };
-use lyon_geom::Arc;
+use lyon_geom::{Arc, LineSegment};
 
 use crate::{Float, Path, Segment};
 
@@ -137,6 +137,22 @@ impl Epoch {
 
         self.segment_rule = draw(min_rect, max_rect);
     }
+
+    /// scale epoch and all segments
+    pub fn scale(&mut self, scale: Float, old_root_center: Point2D<Float>) {
+        self.radius *= scale;
+        self.breadth *= scale;
+        let old_c_offset = LineSegment {
+            from: old_root_center,
+            to: self.center,
+        };
+
+        let new_c_offset = old_c_offset.transformed(&Scale::new(scale));
+
+        self.center = new_c_offset.to();
+
+        self.segment_rule.scale(scale);
+    }
 }
 
 /// How to draw segments
@@ -152,6 +168,21 @@ pub enum SegmentRule {
     OddEven(Path, Path),
     /// Draw nothing
     None,
+}
+
+impl SegmentRule {
+    /// scale the segment
+    pub fn scale(&mut self, scale: Float) {
+        match self {
+            SegmentRule::Path(p) => p.scale(scale),
+            SegmentRule::EveryNth(p1, _) => p1.scale(scale),
+            SegmentRule::OddEven(p1, p2) => {
+                p1.scale(scale);
+                p2.scale(scale);
+            }
+            SegmentRule::None => {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -180,5 +211,29 @@ mod tests {
         let rendered = epoch.render_paths();
 
         assert_eq!(rendered.len(), 11);
+    }
+
+    #[test]
+    fn test_scale() {
+        let mut epoch = Epoch {
+            segments: 10,
+            radius: 20.0,
+            breadth: 5.0,
+            center: Point2D::new(3.0, 3.0),
+            segment_rule: SegmentRule::Path(Path::new(Segment::QuadraticCurve(
+                QuadraticBezierSegment {
+                    from: Point2D::new(0.0, 0.0),
+                    to: Point2D::new(3.0, 0.0),
+                    ctrl: Point2D::new(1.75, 2.0),
+                },
+            ))),
+        };
+
+        let old_root_center = Point2D::new(0.0, 0.0);
+        epoch.scale(2.0, old_root_center);
+
+        assert_eq!(epoch.radius, 40.0);
+        assert_eq!(epoch.breadth, 10.0);
+        assert_eq!(epoch.center, Point2D::new(6.0, 6.0));
     }
 }

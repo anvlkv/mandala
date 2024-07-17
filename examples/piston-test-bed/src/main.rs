@@ -4,21 +4,31 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent};
 use piston::window::WindowSettings;
 
-use mandala::{CubicBezierSegment, EpochBuilder, Mandala, Path, Point2D, Segment, SegmentRule};
-use piston::{Button, PressEvent};
+use mandala::{
+    Angle, ArcFlags, EpochBuilder, Mandala, Path, Point2D, Segment, SegmentRule, SvgArc, Triangle,
+    Vector2D,
+};
+use piston::{Button, PressEvent, UpdateArgs, UpdateEvent};
 
 pub struct App {
     gl: GlGraphics,
     mandala: Mandala,
     drawing: Vec<Path>,
     tick: bool,
+    resize: Option<(f64, f64)>,
+    size: (f64, f64),
 }
 
 const SIZE: u32 = 800;
+const SPACE: f64 = 20.0;
 
 impl App {
     fn render(&mut self, args: &RenderArgs) {
         use graphics::*;
+
+        if args.window_size[0] != self.size.0 || args.window_size[1] != self.size.1 {
+            self.resize = Some((args.window_size[0], args.window_size[1]));
+        }
 
         const BLACK: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
         const WHITE: [f32; 4] = [1.0, 1.0, 1.0, 0.7];
@@ -26,7 +36,7 @@ impl App {
         self.gl.draw(args.viewport(), |c, gl| {
             clear(BLACK, gl);
 
-            let transform = c.transform.trans(10.0, 10.0);
+            let transform = c.transform.trans(SPACE / 2.0, SPACE / 2.0);
 
             if self.tick {
                 circle_arc(WHITE, 2.0, 0.0, 8.0, [0.0, 0.0, 8.0, 8.0], transform, gl);
@@ -112,12 +122,24 @@ impl App {
                 .unwrap();
 
             epoch.draw_segment(|min, max| {
-                let path = Path::new(Segment::CubicCurve(CubicBezierSegment {
+                let mut path = Path::new(Segment::Arc(SvgArc {
                     from: min.min(),
-                    ctrl1: Point2D::new(min.max_x() / 2.0, min.max_y()),
-                    ctrl2: Point2D::new(max.max_x() / 2.0, max.max_y()),
-                    to: Point2D::new(min.max_x(), min.min_y()),
+                    to: Point2D::new(max.max_x(), min.min_y()),
+                    radii: Vector2D::new(
+                        (max.max_x() - min.min_x()) / 2.0,
+                        (max.max_y() - min.min_y()) / 2.0,
+                    ),
+                    x_rotation: Angle::radians(0.0),
+                    flags: ArcFlags::default(),
                 }));
+
+                path.draw_next(|last| {
+                    Segment::Triangle(Triangle {
+                        a: last.to(),
+                        b: Point2D::new(max.max_x(), max.max_y()),
+                        c: Point2D::new(min.min_x(), max.max_y()),
+                    })
+                });
 
                 SegmentRule::Path(path)
             });
@@ -131,6 +153,15 @@ impl App {
                 .map(|e| e.render_paths())
                 .unwrap_or_default(),
         );
+    }
+
+    fn update(&mut self, _: &UpdateArgs) {
+        if let Some(new_size) = self.resize.take() {
+            let size = new_size.0.min(new_size.1) - SPACE;
+            self.mandala.resize(size);
+            self.size = new_size;
+            self.drawing = self.mandala.render_drawing();
+        }
     }
 }
 
@@ -147,9 +178,11 @@ fn main() {
 
     let mut app = App {
         gl: GlGraphics::new(opengl),
-        mandala: Mandala::new((SIZE - 20) as f64),
+        mandala: Mandala::new(SIZE as f64 - SPACE),
         drawing: vec![],
         tick: true,
+        resize: None,
+        size: (SIZE as f64, SIZE as f64),
     };
 
     let mut events = Events::new(EventSettings::new());
@@ -160,6 +193,10 @@ fn main() {
 
         if let Some(args) = e.press_args() {
             app.btn(args)
+        }
+
+        if let Some(args) = e.update_args() {
+            app.update(&args);
         }
     }
 }
