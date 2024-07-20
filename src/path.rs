@@ -8,6 +8,7 @@ use euclid::{
     Angle, Rotation2D, Scale,
 };
 use lyon_geom::{Arc, CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle};
+use ordered_float::OrderedFloat;
 
 use crate::Float;
 
@@ -102,9 +103,9 @@ impl Segment {
 
                 len
             }
-            Segment::Triangle(s) => s.a.distance_to(s.b) + s.b.distance_to(s.c),
+            Segment::Triangle(s) => s.ab().length() + s.bc().length() + s.ca().length(),
             Segment::QuadraticCurve(s) => s.length(),
-            Segment::CubicCurve(s) => s.to_quadratic().length(),
+            Segment::CubicCurve(s) => s.approximate_length(self.tolerable()),
         }
     }
 
@@ -215,6 +216,99 @@ impl Segment {
             Segment::CubicCurve(l) => *l = l.transformed(&Scale::new(scale)),
         }
     }
+
+    pub fn intersection(&self, other: &Self) -> Option<Vec<Point2D<Float>>> {
+        let own_lines = self.flattened();
+        let other_lines = other.flattened();
+
+        let mut intersections = vec![];
+
+        for ln in own_lines {
+            for ln2 in other_lines.iter() {
+                if let Some(pt) = ln.intersection(ln2) {
+                    intersections.push(pt)
+                }
+            }
+        }
+
+        if intersections.is_empty() {
+            None
+        } else {
+            Some(intersections)
+        }
+    }
+
+    /// naive tolerance
+    pub fn tolerable(&self) -> Float {
+        match self {
+            Segment::Line(_) | Segment::Triangle(_) => 0.0,
+            Segment::Arc(a) => a.radii.x.min(a.radii.y) / self.length(),
+            Segment::QuadraticCurve(q) => quadratic_tolerance(*q).into(),
+            Segment::CubicCurve(c) => {
+                let mut inflection = None;
+                c.for_each_inflection_t(&mut |pt| {
+                    inflection = Some(pt);
+                });
+
+                let mut quads = vec![];
+
+                if let Some(t) = inflection {
+                    let (before, after) = c.split(t);
+                    quads.push(before.to_quadratic());
+                    quads.push(after.to_quadratic());
+                } else {
+                    quads.push(c.to_quadratic())
+                }
+
+                let min_tol = quads.into_iter().map(quadratic_tolerance).min();
+
+                min_tol
+                    .unwrap_or_else(|| quadratic_tolerance(c.to_quadratic()))
+                    .into()
+            }
+        }
+    }
+
+    /// flattened curve with naive tolerance
+    pub fn flattened(&self) -> Vec<LineSegment<Float>> {
+        let tolerance = self.tolerable();
+        match self {
+            Segment::Line(l) => vec![*l],
+            Segment::Arc(a) => {
+                let mut lns = vec![];
+                a.for_each_flattened(tolerance, &mut |ln| {
+                    lns.push(*ln);
+                });
+                lns
+            }
+            Segment::Triangle(t) => vec![t.ab(), t.bc(), t.ca()],
+            Segment::QuadraticCurve(q) => {
+                let mut lns = vec![];
+                q.for_each_flattened(tolerance, &mut |ln| {
+                    lns.push(*ln);
+                });
+                lns
+            }
+            Segment::CubicCurve(c) => {
+                let mut lns = vec![];
+                c.for_each_flattened(tolerance, &mut |ln| {
+                    lns.push(*ln);
+                });
+                lns
+            }
+        }
+    }
+}
+
+fn quadratic_tolerance(q: QuadraticBezierSegment<Float>) -> OrderedFloat<Float> {
+    let b = q.bounding_triangle();
+    let ab_l = b.ab().length();
+    let ac_l = b.ac().length();
+    let bc_l = b.bc().length();
+    let s = ab_l.min(ac_l.min(bc_l));
+    let l = q.length();
+
+    (s / l).into()
 }
 
 impl IntoIterator for Path {
@@ -335,7 +429,7 @@ mod tests {
             })
         });
 
-        assert_eq!(path.length(), 9.983008840474714);
+        assert_eq!(path.length(), 11.101042829224609);
     }
 
     #[test]
@@ -462,5 +556,81 @@ mod tests {
 
         assert_eq!(path.from(), Point2D::new(0.0, 0.0));
         assert_eq!(path.to(), Point2D::new(2.5, 1.0));
+    }
+
+    #[test]
+    fn test_tolerable() {
+        let line = Segment::Line(LineSegment {
+            from: Point2D::new(0.0, 0.0),
+            to: Point2D::new(1.0, 1.0),
+        });
+        let arc = Segment::Arc(SvgArc {
+            from: Point2D::new(1.0, 1.0),
+            to: Point2D::new(2.0, 0.0),
+            radii: Vector2D::new(1.0, 1.0),
+            x_rotation: Angle::degrees(40.0),
+            flags: Default::default(),
+        });
+        let triangle = Segment::Triangle(Triangle {
+            a: Point2D::new(1.0, 1.0),
+            b: Point2D::new(2.0, 1.0),
+            c: Point2D::new(1.5, 2.0),
+        });
+        let quadratic_curve = Segment::QuadraticCurve(QuadraticBezierSegment {
+            from: Point2D::new(1.0, 1.0),
+            ctrl: Point2D::new(2.0, 2.0),
+            to: Point2D::new(3.0, 1.0),
+        });
+        let cubic_curve = Segment::CubicCurve(CubicBezierSegment {
+            from: Point2D::new(1.0, 1.0),
+            ctrl1: Point2D::new(2.0, 2.0),
+            ctrl2: Point2D::new(3.0, 0.0),
+            to: Point2D::new(4.0, 1.0),
+        });
+
+        assert_eq!(line.tolerable(), 0.0);
+        assert_eq!(triangle.tolerable(), 0.0);
+
+        assert_eq!(arc.tolerable(), 0.6355488958496096);
+        assert_eq!(quadratic_curve.tolerable(), 0.616057448634553);
+        assert_eq!(cubic_curve.tolerable(), 0.5749251040792732);
+    }
+
+    #[test]
+    fn test_segment_intersection() {
+        let line = Segment::Line(LineSegment {
+            from: Point2D::new(0.0, 0.0),
+            to: Point2D::new(1.0, 1.0),
+        });
+        let arc = Segment::Arc(SvgArc {
+            from: Point2D::new(1.0, 0.0),
+            to: Point2D::new(0.0, 1.0),
+            radii: Vector2D::new(1.0, 1.0),
+            x_rotation: Angle::degrees(0.0),
+            flags: Default::default(),
+        });
+        let quadratic_curve = Segment::QuadraticCurve(QuadraticBezierSegment {
+            from: Point2D::new(0.0, 1.0),
+            ctrl: Point2D::new(1.0, 2.0),
+            to: Point2D::new(2.0, 1.0),
+        });
+
+        let intersections = line.intersection(&arc);
+        assert!(intersections.is_some());
+        let intersections = intersections.unwrap();
+        assert_eq!(intersections.len(), 1);
+        assert_eq!(
+            intersections[0],
+            Point2D::new(0.49999999999999994, 0.49999999999999994)
+        );
+
+        let intersections = line.intersection(&quadratic_curve);
+        assert!(intersections.is_some());
+        let intersections = intersections.unwrap();
+        assert_eq!(intersections.len(), 1);
+        assert_eq!(intersections[0], Point2D::new(1.0, 1.0));
+
+        let intersections = arc.intersection(&quadratic_curve);
+        assert!(intersections.is_none());
     }
 }

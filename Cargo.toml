@@ -8,6 +8,10 @@ authors = ["a.nvlkv <a.nvlkv@pm.me>"]
 derive_builder = "0.20.0"
 euclid = { version = "0.22.10", features = ["mint"] }
 lyon_geom = "1.0.5"
+ordered-float = { version = "4.0", default-features = false }
+
+[features]
+serde = ["euclid/serde", "ordered-float/serde"]
 
 [workspace]
 members = ["./examples/piston-test-bed", "examples/components"]

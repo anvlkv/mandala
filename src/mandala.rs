@@ -1,4 +1,7 @@
-use euclid::default::{Box2D, Size2D, Vector2D};
+use std::collections::HashSet;
+
+use euclid::default::{Box2D, Point2D, Size2D, Vector2D};
+use ordered_float::OrderedFloat;
 
 use crate::{Epoch, EpochBuilder, Float, Path, SegmentRule};
 
@@ -65,6 +68,38 @@ impl Mandala {
         for ep in self.epochs.iter_mut() {
             ep.translate(by);
         }
+    }
+
+    /// finds intersections where there's no epoch's center yet
+    pub fn propose_epoch_displacements(&self) -> HashSet<Point2D<OrderedFloat<Float>>> {
+        let centers: HashSet<Point2D<OrderedFloat<Float>>> = HashSet::from_iter(
+            self.epochs
+                .iter()
+                .map(|e| Point2D::new(OrderedFloat(e.center.x), OrderedFloat(e.center.y))),
+        );
+        let all_segments = self
+            .render_drawing()
+            .into_iter()
+            .flat_map(|p| p.into_iter());
+
+        let mut displacements = HashSet::new();
+
+        for s in all_segments.clone() {
+            for s2 in all_segments.clone() {
+                if let Some(pts) = s.intersection(&s2) {
+                    for pt in pts
+                        .iter()
+                        .map(|pt| Point2D::new(OrderedFloat(pt.x), OrderedFloat(pt.y)))
+                    {
+                        if !centers.contains(&pt) {
+                            _ = displacements.insert(pt);
+                        }
+                    }
+                }
+            }
+        }
+
+        displacements
     }
 }
 
@@ -152,5 +187,58 @@ mod tests {
     #[test]
     fn new() {
         _ = Mandala::new(200.0);
+    }
+
+    #[test]
+    fn test_propose_epoch_displacements() {
+        let mut mandala = Mandala::new(200.0);
+        mandala.draw_epoch(|epoch| {
+            crate::EpochBuilder::default()
+                .center(epoch.center)
+                .segments(12)
+                .radius(epoch.radius / 2.0)
+                .breadth(5.0)
+                .segment_rule(crate::SegmentRule::None)
+                .build()
+                .expect("build new epoch")
+        });
+
+        let displacements = mandala.propose_epoch_displacements();
+        assert!(displacements.is_empty());
+    }
+
+    #[test]
+    fn test_propose_epoch_displacements_with_intersections() {
+        let mut mandala = Mandala::new(200.0);
+        mandala.draw_epoch(|epoch| {
+            crate::EpochBuilder::default()
+                .center(epoch.center)
+                .segments(12)
+                .radius(epoch.radius / 2.0)
+                .breadth(5.0)
+                .segment_rule(crate::SegmentRule::None)
+                .build()
+                .expect("build new epoch")
+        });
+
+        // Add an epoch with a segment that intersects with the existing ones
+        mandala.draw_epoch(|_| {
+            crate::EpochBuilder::default()
+                .center(Point2D::new(50.0, 50.0))
+                .segments(1)
+                .radius(48.0)
+                .breadth(5.0)
+                .segment_rule(crate::SegmentRule::Path(Path::new(Segment::Line(
+                    LineSegment {
+                        from: Point2D::new(100.0, 100.0),
+                        to: Point2D::new(150.0, 150.0),
+                    },
+                ))))
+                .build()
+                .expect("build new epoch")
+        });
+
+        let displacements = mandala.propose_epoch_displacements();
+        assert!(!displacements.is_empty());
     }
 }
