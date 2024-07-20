@@ -53,61 +53,14 @@ impl App {
                         (1.0 / total) * (i + 1) as f32,
                     ];
                     for s in p.into_iter() {
-                        match s {
-                            mandala::Segment::Line(l) => line(
+                        for l in s.flattened() {
+                            line(
                                 color,
                                 LINE_THICKNESS,
                                 [l.from.x, l.from.y, l.to.x, l.to.y],
                                 transform,
                                 gl,
-                            ),
-                            mandala::Segment::Arc(l) => l.for_each_flattened(0.1, &mut |f| {
-                                line(
-                                    color,
-                                    LINE_THICKNESS,
-                                    [f.from.x, f.from.y, f.to.x, f.to.y],
-                                    transform,
-                                    gl,
-                                );
-                            }),
-                            mandala::Segment::Triangle(l) => {
-                                line(
-                                    color,
-                                    LINE_THICKNESS,
-                                    [l.a.x, l.a.y, l.b.x, l.b.y],
-                                    transform,
-                                    gl,
-                                );
-                                line(
-                                    color,
-                                    LINE_THICKNESS,
-                                    [l.b.x, l.b.y, l.c.x, l.c.y],
-                                    transform,
-                                    gl,
-                                );
-                            }
-                            mandala::Segment::QuadraticCurve(l) => {
-                                l.for_each_flattened(0.1, &mut |f| {
-                                    line(
-                                        color,
-                                        LINE_THICKNESS,
-                                        [f.from.x, f.from.y, f.to.x, f.to.y],
-                                        transform,
-                                        gl,
-                                    );
-                                })
-                            }
-                            mandala::Segment::CubicCurve(l) => {
-                                l.for_each_flattened(0.1, &mut |f| {
-                                    line(
-                                        color,
-                                        LINE_THICKNESS,
-                                        [f.from.x, f.from.y, f.to.x, f.to.y],
-                                        transform,
-                                        gl,
-                                    );
-                                })
-                            }
+                            )
                         }
                     }
                 }
@@ -124,6 +77,8 @@ impl App {
             let size = new_size.0.min(new_size.1) - SPACE;
             self.mandala.resize(size);
             self.size = new_size;
+        } else {
+            self.mandala.generate_epoch();
         }
     }
 }
@@ -133,7 +88,7 @@ fn main() {
     let opengl = OpenGL::V3_2;
 
     // Create a Glutin window.
-    let mut window: Window = WindowSettings::new("spinning-square", [SIZE, SIZE])
+    let mut window: Window = WindowSettings::new("mandala / piston 2D preview", [SIZE, SIZE])
         .graphics_api(opengl)
         .exit_on_esc(true)
         .build()

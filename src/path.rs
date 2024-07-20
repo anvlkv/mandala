@@ -14,6 +14,8 @@ use ordered_float::OrderedFloat;
 
 use crate::{util::rand_pt_in_bounds, Float};
 
+const EPSILON_POW_2: Float = 1e-8 * 1e-8;
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Path(LinkedList<Segment>);
@@ -42,7 +44,7 @@ impl Path {
         let path_end = if symmetry {
             Point2D::new(
                 g_bounds.max_x(),
-                g_bounds.max_y() * rng.gen_range(Float::MIN_POSITIVE..1.0),
+                g_bounds.max_y() * rng.gen_range((EPSILON_POW_2)..1.0),
             )
         } else {
             Point2D::new(g_bounds.max_x(), path_start.y)
@@ -53,7 +55,7 @@ impl Path {
         };
 
         let mut path = Self::new({
-            let frac = rng.gen_range(Float::MIN_POSITIVE..0.5);
+            let frac = rng.gen_range((EPSILON_POW_2)..0.5);
 
             let p_bl = baseline.before_split(frac);
 
@@ -68,8 +70,8 @@ impl Path {
                     let ln = LineSegment {
                         from: last.to(),
                         to: Point2D::new(
-                            g_bounds.max_x() * rng.gen_range(Float::MIN_POSITIVE..1.0),
-                            g_bounds.max_y() * rng.gen_range(Float::MIN_POSITIVE..1.0),
+                            g_bounds.max_x() * rng.gen_range((EPSILON_POW_2)..1.0),
+                            g_bounds.max_y() * rng.gen_range((EPSILON_POW_2)..1.0),
                         ),
                     };
                     Segment::generate(rng, g_bounds, ln.from, ln.to)
@@ -456,6 +458,7 @@ impl Segment {
                     .into()
             }
         }
+        .max(1e-8)
     }
 
     /// flattened curve with naive tolerance
