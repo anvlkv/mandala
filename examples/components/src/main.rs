@@ -1,19 +1,26 @@
 use glutin_window::GlutinWindow as Window;
 use mandala::{
     Angle, Arc, ArcFlags, CubicBezierSegment, Epoch, EpochBuilder, LineSegment, Mandala, Path,
-    Point2D, QuadraticBezierSegment, Segment, SegmentRule, SvgArc, Triangle, Vector2D,
+    Point2D, QuadraticBezierSegment, Rect, Segment, SegmentRule, Size2D, SvgArc, Triangle,
+    Vector2D,
 };
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent};
 use piston::window::WindowSettings;
+use piston::{UpdateArgs, UpdateEvent};
+use rand::{rngs::ThreadRng, thread_rng};
 
 pub struct App {
     gl: GlGraphics,
     drawing: Vec<Path>,
+    rng: ThreadRng,
+    rands: Vec<Path>,
+    update_time: f64,
 }
 
 const SIZE: u32 = 800;
+const RND_SIZE: u32 = 60;
 
 impl App {
     fn render(&mut self, args: &RenderArgs) {
@@ -35,53 +42,68 @@ impl App {
 
             for p in self.drawing.clone().into_iter() {
                 for s in p.into_iter() {
-                    match s {
-                        mandala::Segment::Line(l) => line(
-                            WHITE,
+                    let clr = match s {
+                        mandala::Segment::Line(_) => WHITE,
+                        mandala::Segment::Arc(_) => RED,
+                        mandala::Segment::Triangle(_) => GREEN,
+                        mandala::Segment::QuadraticCurve(_) => BLUE,
+                        mandala::Segment::CubicCurve(_) => PURPLE,
+                    };
+
+                    for l in s.flattened() {
+                        line(
+                            clr,
                             STROKE,
                             [l.from.x, l.from.y, l.to.x, l.to.y],
                             transform,
                             gl,
-                        ),
-                        mandala::Segment::Arc(l) => {
-                            l.for_each_flattened(0.1, &mut |f| {
-                                line(
-                                    RED,
-                                    STROKE,
-                                    [f.from.x, f.from.y, f.to.x, f.to.y],
-                                    transform,
-                                    gl,
-                                );
-                            });
-                        }
-                        mandala::Segment::Triangle(l) => {
-                            line(GREEN, STROKE, [l.a.x, l.a.y, l.b.x, l.b.y], transform, gl);
-                            line(GREEN, STROKE, [l.b.x, l.b.y, l.c.x, l.c.y], transform, gl);
-                        }
-                        mandala::Segment::QuadraticCurve(l) => {
-                            l.for_each_flattened(0.1, &mut |f| {
-                                line(
-                                    BLUE,
-                                    STROKE,
-                                    [f.from.x, f.from.y, f.to.x, f.to.y],
-                                    transform,
-                                    gl,
-                                );
-                            })
-                        }
-                        mandala::Segment::CubicCurve(l) => l.for_each_flattened(0.1, &mut |f| {
-                            line(
-                                PURPLE,
-                                STROKE,
-                                [f.from.x, f.from.y, f.to.x, f.to.y],
-                                transform,
-                                gl,
-                            );
-                        }),
+                        );
+                    }
+                }
+            }
+
+            for (i, p) in self.rands.iter().enumerate() {
+                let clr = match i {
+                    0 | 5 => WHITE,
+                    1 | 6 => RED,
+                    2 | 7 => GREEN,
+                    3 | 8 => BLUE,
+                    4 | 9 => PURPLE,
+                    _ => [0.5, 0.0, 0.5, 0.7],
+                };
+                for s in p.clone().into_iter() {
+                    for l in s.flattened() {
+                        line(
+                            clr,
+                            STROKE,
+                            [l.from.x, l.from.y, l.to.x, l.to.y],
+                            c.transform.trans(
+                                (i as u32 * RND_SIZE) as f64 + 15.0,
+                                (SIZE - RND_SIZE) as f64 - 15.0,
+                            ),
+                            gl,
+                        );
                     }
                 }
             }
         });
+    }
+
+    fn update(&mut self, u: &UpdateArgs) {
+        self.update_time += u.dt;
+
+        if self.update_time >= 0.01 {
+            let size = RND_SIZE as f64;
+            let mut rands = vec![];
+            for i in 0..(SIZE / RND_SIZE) {
+                let i = (i + 1) as u8;
+                let bounds = Rect::from_size(Size2D::splat(size));
+                let p = Path::generate(&mut self.rng, bounds, i.rem_euclid(2) == 0, i);
+                rands.push(p);
+            }
+            self.rands = rands;
+            self.update_time = 0.0;
+        }
     }
 }
 
@@ -366,12 +388,19 @@ fn main() {
     let mut app = App {
         gl: GlGraphics::new(opengl),
         drawing,
+        rng: thread_rng(),
+        rands: vec![],
+        update_time: 0.0,
     };
 
     let mut events = Events::new(EventSettings::new());
     while let Some(e) = events.next(&mut window) {
         if let Some(args) = e.render_args() {
             app.render(&args);
+        }
+
+        if let Some(args) = e.update_args() {
+            app.update(&args);
         }
     }
 }

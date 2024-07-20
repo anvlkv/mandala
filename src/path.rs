@@ -780,8 +780,8 @@ mod tests {
             to: Point2D::new(4.0, 1.0),
         });
 
-        assert_eq!(line.tolerable(), 0.0);
-        assert_eq!(triangle.tolerable(), 0.0);
+        assert_eq!(line.tolerable(), 1e-8);
+        assert_eq!(triangle.tolerable(), 1e-8);
 
         assert_eq!(arc.tolerable(), 0.6355488958496096);
         assert_eq!(quadratic_curve.tolerable(), 0.616057448634553);

@@ -15,7 +15,7 @@ pub struct App {
     size: (f64, f64),
 }
 
-const SIZE: u32 = 800;
+const SIZE: u32 = 1000;
 const SPACE: f64 = 20.0;
 const LINE_THICKNESS: f64 = 0.75;
 
@@ -116,4 +116,6 @@ fn main() {
             app.update(&args);
         }
     }
+
+    println!("final mandala: {:#?}", app.mandala);
 }

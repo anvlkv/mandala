@@ -10,7 +10,7 @@ pub use mandala::*;
 pub use path::*;
 
 pub use euclid::{
-    default::{Point2D, Vector2D},
+    default::{Point2D, Rect, Size2D, Vector2D},
     Angle,
 };
 pub use lyon_geom::{

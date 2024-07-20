@@ -11,6 +11,7 @@ use rand::{
 
 use crate::{util::rand_pt_in_bounds, Epoch, EpochBuilder, Float, Path, SegmentRule};
 
+#[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Mandala {
     bounds: Box2D<Float>,
@@ -121,7 +122,7 @@ impl Mandala {
                 let bounds =
                     Box2D::new(min.min(), Point2D::new(min.max_x(), max.max_y())).to_rect();
                 let symmetry = rng.gen_ratio(2, 3);
-                let detail = rng.gen_range(1..=8);
+                let detail = rng.gen_range(1..=5);
 
                 SegmentRule::generate(rng, |rng| Path::generate(rng, bounds, symmetry, detail))
             });

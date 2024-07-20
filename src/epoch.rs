@@ -46,7 +46,9 @@ impl Epoch {
     pub fn render_paths(&self) -> Vec<Path> {
         let mut paths = Vec::new();
         let radius = self.radius - self.breadth;
-        let ring = Arc::circle(self.center, radius);
+        let mut ring = Arc::circle(self.center, radius);
+        // FIXME: not sure why is this needed but sometimes circle is of 0 length
+        ring.x_rotation = Angle::pi();
         paths.push(Path::new(Segment::Arc(ring.to_svg_arc())));
 
         match &self.segment_rule {
