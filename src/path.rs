@@ -4,27 +4,105 @@ use std::{
 };
 
 use euclid::{
-    default::{Point2D, Translation2D, Vector2D},
-    Angle, Rotation2D, Scale,
+    default::{Point2D, Rect, Translation2D, Vector2D},
+    Angle, Rotation2D, Scale, Size2D,
 };
-use lyon_geom::{Arc, CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle};
+use lyon_geom::{
+    Arc, ArcFlags, CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc, Triangle,
+};
 use ordered_float::OrderedFloat;
 
-use crate::Float;
+use crate::{util::rand_pt_in_bounds, Float};
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Path(LinkedList<Segment>);
 
 impl Path {
-    /// given the first segment create new path
+    /// Generate path given its bounds and generation mode
+    ///
+    /// Symmetry is along Y axis
+    ///
+    /// Detail level determines number of iterations to generate single pass,
+    /// using symmetry essentially doubles the detalisation
+    pub fn generate<R>(rng: &mut R, bounds: Rect<Float>, symmetry: bool, detail: u8) -> Self
+    where
+        R: rand::Rng,
+    {
+        let g_bounds = if symmetry {
+            Rect::new(
+                bounds.origin,
+                Size2D::new(bounds.width() / 2.0, bounds.height()),
+            )
+        } else {
+            bounds
+        };
+
+        let path_start = g_bounds.min();
+        let path_end = if symmetry {
+            Point2D::new(
+                g_bounds.max_x(),
+                g_bounds.max_y() * rng.gen_range(Float::MIN_POSITIVE..1.0),
+            )
+        } else {
+            Point2D::new(g_bounds.max_x(), path_start.y)
+        };
+        let baseline = LineSegment {
+            from: path_start,
+            to: path_end,
+        };
+
+        let mut path = Self::new({
+            let frac = rng.gen_range(Float::MIN_POSITIVE..0.5);
+
+            let p_bl = baseline.before_split(frac);
+
+            Segment::generate(rng, p_bl.bounding_box().to_rect(), path_start, p_bl.to)
+        });
+
+        let mut it = (0..=detail).peekable();
+
+        while let Some(_) = it.next() {
+            path.draw_next(|last| {
+                if it.peek().is_some() {
+                    let ln = LineSegment {
+                        from: last.to(),
+                        to: Point2D::new(
+                            g_bounds.max_x() * rng.gen_range(Float::MIN_POSITIVE..1.0),
+                            g_bounds.max_y() * rng.gen_range(Float::MIN_POSITIVE..1.0),
+                        ),
+                    };
+                    Segment::generate(rng, g_bounds, ln.from, ln.to)
+                } else {
+                    let ln = LineSegment {
+                        from: last.to(),
+                        to: baseline.to,
+                    };
+                    Segment::generate(rng, g_bounds, ln.from, ln.to)
+                }
+            });
+        }
+
+        if symmetry {
+            let lst = path.0.clone();
+
+            for s in lst.iter() {
+                path.draw_next(|_| Segment::flip_along_y(s, g_bounds.max_x()))
+            }
+        }
+
+        path
+    }
+
+    /// Given the first segment create new path
     pub fn new(first: Segment) -> Self {
         Self(LinkedList::from_iter(vec![first]))
     }
 
-    /// draw next segment of a continuoous path based on the last one
-    pub fn draw_next<F>(&mut self, draw: F)
+    /// Draw next segment of a continuoous path based on the last one
+    pub fn draw_next<F>(&mut self, mut draw: F)
     where
-        F: Fn(&Segment) -> Segment,
+        F: FnMut(&Segment) -> Segment,
     {
         let last = self.0.front().expect("at least one element");
 
@@ -39,12 +117,12 @@ impl Path {
         self.0.push_front(next);
     }
 
-    /// total length of all path segments
+    /// Total length of all path segments
     pub fn length(&self) -> Float {
         self.0.iter().fold(0.0, |l, segment| l + segment.length())
     }
 
-    /// startingg point of the path
+    /// Startingg point of the path
     pub fn from(&self) -> Point2D<Float> {
         self.0.back().map(|s| s.from()).unwrap_or_default()
     }
@@ -54,27 +132,33 @@ impl Path {
         self.0.front().map(|s| s.to()).unwrap_or_default()
     }
 
-    /// translate all segments
+    /// Translate all segments
     pub fn translate(&self, by: Vector2D<Float>) -> Self {
         Self(LinkedList::from_iter(
             self.0.iter().map(|s| s.translate(by)),
         ))
     }
 
-    /// rotate all segments
+    /// Rotate all segments
     pub fn rotate(&self, by: Angle<Float>) -> Self {
         Self(LinkedList::from_iter(self.0.iter().map(|s| s.rotate(by))))
     }
 
-    /// scale all path segments
+    /// Scale all path segments
     pub fn scale(&mut self, scale: Float) {
         for s in self.0.iter_mut() {
             s.scale(scale);
         }
     }
+
+    /// Key points of all path segments
+    pub fn key_pts(&self) -> Vec<Point2D<Float>> {
+        self.0.iter().flat_map(|s| s.key_pts()).collect()
+    }
 }
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Segment {
     /// staright line
     Line(LineSegment<Float>),
@@ -89,6 +173,86 @@ pub enum Segment {
 }
 
 impl Segment {
+    /// generate a path segment given its bounds, start and end points
+    pub fn generate<R>(
+        rng: &mut R,
+        bounds: Rect<Float>,
+        from: Point2D<Float>,
+        to: Point2D<Float>,
+    ) -> Self
+    where
+        R: rand::Rng,
+    {
+        match rng.gen_range(0..=4) {
+            0 => Self::Line(LineSegment { from, to }),
+            1 => Self::Arc(SvgArc {
+                from,
+                to,
+                radii: {
+                    let l_r = bounds.width().min(bounds.height());
+                    let h_r = bounds.width().max(bounds.height());
+
+                    Vector2D::new(
+                        rng.gen_range(l_r..=h_r) / 2.0,
+                        rng.gen_range(l_r..=h_r) / 2.0,
+                    )
+                },
+                x_rotation: Angle::zero(),
+                flags: ArcFlags::default(),
+            }),
+            2 => Self::Triangle(Triangle {
+                a: from,
+                b: rand_pt_in_bounds(rng, bounds),
+                c: to,
+            }),
+            3 => Self::QuadraticCurve(QuadraticBezierSegment {
+                from,
+                ctrl: rand_pt_in_bounds(rng, bounds),
+                to,
+            }),
+            4 => Self::CubicCurve(CubicBezierSegment {
+                from,
+                ctrl1: rand_pt_in_bounds(rng, bounds),
+                ctrl2: rand_pt_in_bounds(rng, bounds),
+                to,
+            }),
+            _ => unreachable!(),
+        }
+    }
+
+    /// flip the segment along the vertical axis, where the axis is positioned at a given `x` coordinate
+    pub fn flip_along_y(&self, x_pos_axis: Float) -> Self {
+        match self {
+            Segment::Line(s) => Segment::Line(LineSegment {
+                to: Point2D::new(x_pos_axis - (s.from.x - x_pos_axis), s.from.y),
+                from: Point2D::new(x_pos_axis - (s.to.x - x_pos_axis), s.to.y),
+            }),
+            Segment::Arc(s) => Segment::Arc(SvgArc {
+                to: Point2D::new(x_pos_axis - (s.from.x - x_pos_axis), s.from.y),
+                from: Point2D::new(x_pos_axis - (s.to.x - x_pos_axis), s.to.y),
+                radii: s.radii,
+                x_rotation: s.x_rotation,
+                flags: s.flags,
+            }),
+            Segment::Triangle(s) => Segment::Triangle(Triangle {
+                c: Point2D::new(x_pos_axis - (s.a.x - x_pos_axis), s.a.y),
+                b: Point2D::new(x_pos_axis - (s.b.x - x_pos_axis), s.b.y),
+                a: Point2D::new(x_pos_axis - (s.c.x - x_pos_axis), s.c.y),
+            }),
+            Segment::QuadraticCurve(s) => Segment::QuadraticCurve(QuadraticBezierSegment {
+                to: Point2D::new(x_pos_axis - (s.from.x - x_pos_axis), s.from.y),
+                ctrl: Point2D::new(x_pos_axis - (s.ctrl.x - x_pos_axis), s.ctrl.y),
+                from: Point2D::new(x_pos_axis - (s.to.x - x_pos_axis), s.to.y),
+            }),
+            Segment::CubicCurve(s) => Segment::CubicCurve(CubicBezierSegment {
+                to: Point2D::new(x_pos_axis - (s.from.x - x_pos_axis), s.from.y),
+                ctrl1: Point2D::new(x_pos_axis - (s.ctrl1.x - x_pos_axis), s.ctrl1.y),
+                ctrl2: Point2D::new(x_pos_axis - (s.ctrl2.x - x_pos_axis), s.ctrl2.y),
+                from: Point2D::new(x_pos_axis - (s.to.x - x_pos_axis), s.to.y),
+            }),
+        }
+    }
+
     /// length of the segment
     pub fn length(&self) -> Float {
         match self {
@@ -128,6 +292,30 @@ impl Segment {
             Segment::Triangle(s) => s.c,
             Segment::QuadraticCurve(s) => s.to,
             Segment::CubicCurve(s) => s.to,
+        }
+    }
+
+    /// Key points of this segment
+    pub fn key_pts(&self) -> Vec<Point2D<Float>> {
+        match self {
+            Segment::Line(l) => vec![l.from, l.to],
+            Segment::Arc(a) => {
+                let mut pts = vec![];
+                a.for_each_quadratic_bezier(&mut |q| {
+                    pts.push(q.to);
+                    pts.push(q.from);
+                });
+                pts
+            }
+            Segment::Triangle(t) => vec![t.a, t.b, t.c],
+            Segment::QuadraticCurve(q) => vec![q.to, q.from],
+            Segment::CubicCurve(c) => {
+                let mut pts = vec![c.to, c.from];
+                c.for_each_inflection_t(&mut |t| {
+                    pts.push(c.sample(t));
+                });
+                pts
+            }
         }
     }
 
@@ -217,6 +405,7 @@ impl Segment {
         }
     }
 
+    /// find intersections with the other segment
     pub fn intersection(&self, other: &Self) -> Option<Vec<Point2D<Float>>> {
         let own_lines = self.flattened();
         let other_lines = other.flattened();
@@ -632,5 +821,59 @@ mod tests {
 
         let intersections = arc.intersection(&quadratic_curve);
         assert!(intersections.is_none());
+    }
+
+    #[test]
+    fn test_path_generation() {
+        let mut rng = rand::thread_rng();
+        let bounds = Rect::new(Point2D::new(0.0, 0.0), Size2D::new(10.0, 10.0));
+        let path = Path::generate(&mut rng, bounds, false, 5);
+
+        assert!(path.length() > 0.0);
+        assert_eq!(path.from(), Point2D::new(0.0, 0.0));
+        assert_eq!(path.to(), Point2D::new(10.0, 0.0));
+    }
+
+    #[test]
+    fn test_symmetrical_path_generation() {
+        let mut rng = rand::thread_rng();
+        let bounds = Rect::new(Point2D::new(0.0, 0.0), Size2D::new(10.0, 10.0));
+        let path = Path::generate(&mut rng, bounds, true, 20);
+
+        assert!(path.length() > 0.0);
+        assert_eq!(path.from(), Point2D::new(0.0, 0.0));
+        assert_eq!(path.to(), Point2D::new(10.0, 0.0));
+    }
+
+    #[test]
+    fn test_segment_generation() {
+        let mut rng = rand::thread_rng();
+        let bounds = Rect::new(Point2D::new(0.0, 0.0), Size2D::new(10.0, 10.0));
+        let from = Point2D::new(0.0, 0.0);
+        let to = Point2D::new(10.0, 10.0);
+        let segment = Segment::generate(&mut rng, bounds, from, to);
+
+        match segment {
+            Segment::Line(s) => {
+                assert_eq!(s.from, from);
+                assert_eq!(s.to, to);
+            }
+            Segment::Arc(s) => {
+                assert_eq!(s.from, from);
+                assert_eq!(s.to, to);
+            }
+            Segment::Triangle(s) => {
+                assert_eq!(s.a, from);
+                assert_eq!(s.c, to);
+            }
+            Segment::QuadraticCurve(s) => {
+                assert_eq!(s.from, from);
+                assert_eq!(s.to, to);
+            }
+            Segment::CubicCurve(s) => {
+                assert_eq!(s.from, from);
+                assert_eq!(s.to, to);
+            }
+        }
     }
 }

@@ -4,10 +4,7 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{RenderArgs, RenderEvent};
 use piston::window::WindowSettings;
 
-use mandala::{
-    Angle, ArcFlags, EpochBuilder, Mandala, Path, Point2D, Segment, SegmentRule, SvgArc, Triangle,
-    Vector2D,
-};
+use mandala::Mandala;
 use piston::{Button, PressEvent, UpdateArgs, UpdateEvent};
 
 pub struct App {
@@ -45,44 +42,26 @@ impl App {
                 self.tick = true;
             }
 
-            for (i, p) in self.mandala.drawing.clone().into_iter().enumerate() {
-                for (j, s) in p.into_iter().enumerate() {
-                    let color: [f32; 4] = [1.0 / (i + 1) as f32, 1.0 / (j + 1) as f32, 1.0, 1.0];
-                    match s {
-                        mandala::Segment::Line(l) => line(
-                            color,
-                            LINE_THICKNESS,
-                            [l.from.x, l.from.y, l.to.x, l.to.y],
-                            transform,
-                            gl,
-                        ),
-                        mandala::Segment::Arc(l) => l.for_each_flattened(0.1, &mut |f| {
-                            line(
+            let total = self.mandala.drawing.len() as f32;
+
+            for (i, e) in self.mandala.drawing.clone().into_iter().enumerate() {
+                for (j, p) in e.into_iter().enumerate() {
+                    let color: [f32; 4] = [
+                        1.0 / (i + 1) as f32,
+                        1.0 / (j + 1) as f32,
+                        1.0,
+                        (1.0 / total) * (i + 1) as f32,
+                    ];
+                    for s in p.into_iter() {
+                        match s {
+                            mandala::Segment::Line(l) => line(
                                 color,
                                 LINE_THICKNESS,
-                                [f.from.x, f.from.y, f.to.x, f.to.y],
+                                [l.from.x, l.from.y, l.to.x, l.to.y],
                                 transform,
                                 gl,
-                            );
-                        }),
-                        mandala::Segment::Triangle(l) => {
-                            line(
-                                color,
-                                LINE_THICKNESS,
-                                [l.a.x, l.a.y, l.b.x, l.b.y],
-                                transform,
-                                gl,
-                            );
-                            line(
-                                color,
-                                LINE_THICKNESS,
-                                [l.b.x, l.b.y, l.c.x, l.c.y],
-                                transform,
-                                gl,
-                            );
-                        }
-                        mandala::Segment::QuadraticCurve(l) => {
-                            l.for_each_flattened(0.1, &mut |f| {
+                            ),
+                            mandala::Segment::Arc(l) => l.for_each_flattened(0.1, &mut |f| {
                                 line(
                                     color,
                                     LINE_THICKNESS,
@@ -90,17 +69,46 @@ impl App {
                                     transform,
                                     gl,
                                 );
-                            })
+                            }),
+                            mandala::Segment::Triangle(l) => {
+                                line(
+                                    color,
+                                    LINE_THICKNESS,
+                                    [l.a.x, l.a.y, l.b.x, l.b.y],
+                                    transform,
+                                    gl,
+                                );
+                                line(
+                                    color,
+                                    LINE_THICKNESS,
+                                    [l.b.x, l.b.y, l.c.x, l.c.y],
+                                    transform,
+                                    gl,
+                                );
+                            }
+                            mandala::Segment::QuadraticCurve(l) => {
+                                l.for_each_flattened(0.1, &mut |f| {
+                                    line(
+                                        color,
+                                        LINE_THICKNESS,
+                                        [f.from.x, f.from.y, f.to.x, f.to.y],
+                                        transform,
+                                        gl,
+                                    );
+                                })
+                            }
+                            mandala::Segment::CubicCurve(l) => {
+                                l.for_each_flattened(0.1, &mut |f| {
+                                    line(
+                                        color,
+                                        LINE_THICKNESS,
+                                        [f.from.x, f.from.y, f.to.x, f.to.y],
+                                        transform,
+                                        gl,
+                                    );
+                                })
+                            }
                         }
-                        mandala::Segment::CubicCurve(l) => l.for_each_flattened(0.1, &mut |f| {
-                            line(
-                                color,
-                                LINE_THICKNESS,
-                                [f.from.x, f.from.y, f.to.x, f.to.y],
-                                transform,
-                                gl,
-                            );
-                        }),
                     }
                 }
             }
@@ -108,41 +116,7 @@ impl App {
     }
 
     fn btn(&mut self, _: Button) {
-        self.mandala.draw_epoch(|last| {
-            //
-            let mut epoch = EpochBuilder::default()
-                .radius(last.radius - last.breadth - 1.0)
-                .breadth(last.radius / 4.0)
-                .segments(last.segments + 8)
-                .center(last.center)
-                .build()
-                .unwrap();
-
-            epoch.draw_segment(|min, max| {
-                let mut path = Path::new(Segment::Arc(SvgArc {
-                    from: min.min(),
-                    to: Point2D::new(max.max_x(), min.min_y()),
-                    radii: Vector2D::new(
-                        (max.max_x() - min.min_x()) / 2.0,
-                        (max.max_y() - min.min_y()) / 2.0,
-                    ),
-                    x_rotation: Angle::radians(0.0),
-                    flags: ArcFlags::default(),
-                }));
-
-                path.draw_next(|last| {
-                    Segment::Triangle(Triangle {
-                        a: last.to(),
-                        b: Point2D::new(max.max_x(), max.max_y()),
-                        c: Point2D::new(min.min_x(), max.max_y()),
-                    })
-                });
-
-                SegmentRule::Path(path)
-            });
-
-            epoch
-        });
+        self.mandala.generate_epoch();
     }
 
     fn update(&mut self, _: &UpdateArgs) {

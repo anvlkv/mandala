@@ -3,15 +3,29 @@ name = "mandala"
 version = "0.1.0"
 edition = "2021"
 authors = ["a.nvlkv <a.nvlkv@pm.me>"]
+keywords = ["generative", "radial", "drawing"]
 
 [dependencies]
+const-primes = "0.8.7"
 derive_builder = "0.20.0"
 euclid = { version = "0.22.10", features = ["mint"] }
 lyon_geom = "1.0.5"
 ordered-float = { version = "4.0", default-features = false }
+rand = { version = "0.8.5", features = ["small_rng"] }
+rand_chacha = "0.3.1"
+serde = { version = "1.0.204", optional = true }
+
 
 [features]
-serde = ["euclid/serde", "ordered-float/serde"]
+serde = [
+    "euclid/serde",
+    "ordered-float/serde",
+    "rand/serde",
+    "rand_chacha/serde",
+    "const-primes/serde",
+    "lyon_geom/serialization",
+    "dep:serde",
+]
 
 [workspace]
 members = ["./examples/piston-test-bed", "examples/components"]

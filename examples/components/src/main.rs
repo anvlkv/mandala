@@ -316,7 +316,7 @@ fn main() {
     let mut mndl = Mandala::new(380.0);
 
     for i in 1..=25 {
-        mndl.draw_epoch(|last| {
+        mndl.draw_epoch(|last, _| {
             let mut ep = EpochBuilder::default()
                 .center(last.center)
                 .radius(last.radius - 10.0)
@@ -359,6 +359,7 @@ fn main() {
     drawing.extend(
         mndl.render_drawing()
             .into_iter()
+            .flat_map(|e| e.into_iter())
             .map(|p| p.translate(Vector2D::new(200.0, 300.0))),
     );
 

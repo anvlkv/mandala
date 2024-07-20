@@ -1,6 +1,7 @@
 mod epoch;
 mod mandala;
 mod path;
+mod util;
 
 pub type Float = f64;
 

@@ -5,7 +5,7 @@ use euclid::{
     default::{Point2D, Rect, Size2D, Vector2D},
     Angle, Scale,
 };
-use lyon_geom::{Arc, LineSegment};
+use lyon_geom::{Arc, LineSegment, Rotation};
 
 use crate::{Float, Path, Segment};
 
@@ -17,6 +17,7 @@ use crate::{Float, Path, Segment};
 ///
 /// Each segment is filled with drawing rule
 #[derive(Debug, Builder)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Epoch {
     /// number of segments
     pub segments: usize,
@@ -32,13 +33,52 @@ pub struct Epoch {
 }
 
 impl Epoch {
-    /// Generate paths for every segment
+    /// Space available for drawing next epoch
+    pub fn space_next(&self) -> Rect<Float> {
+        let size = (self.radius - self.breadth) * 2.0;
+        Rect::new(
+            self.center.add_size(&Size2D::splat(-size / 2.0)),
+            Size2D::splat(size),
+        )
+    }
+
+    /// Render paths for every segment
     pub fn render_paths(&self) -> Vec<Path> {
         let mut paths = Vec::new();
         let radius = self.radius - self.breadth;
         let ring = Arc::circle(self.center, radius);
         paths.push(Path::new(Segment::Arc(ring.to_svg_arc())));
 
+        match &self.segment_rule {
+            SegmentRule::Path(p) => {
+                self.segment_transforms(&mut |tilt, translate_by, _| {
+                    paths.push(p.rotate(tilt).translate(translate_by));
+                });
+            }
+            SegmentRule::EveryNth(p, nth) => {
+                self.segment_transforms(&mut |tilt, translate_by, i| {
+                    if i.rem_euclid(*nth) == 0 {
+                        paths.push(p.rotate(tilt).translate(translate_by));
+                    }
+                });
+            }
+            SegmentRule::OddEven(odd_p, even_p) => {
+                self.segment_transforms(&mut |tilt, translate_by, i| {
+                    let p = if i.rem_euclid(2) == 0 { even_p } else { odd_p };
+                    paths.push(p.rotate(tilt).translate(translate_by));
+                });
+            }
+            SegmentRule::None => {}
+        }
+
+        paths
+    }
+
+    /// Compute the necessary transformations for each segment
+    pub fn segment_transforms<W>(&self, with: &mut W)
+    where
+        W: FnMut(Angle<Float>, Vector2D<Float>, usize),
+    {
         let angle_step = Angle::<Float>::two_pi().radians / {
             if self.segments > 0 {
                 self.segments as f64
@@ -59,27 +99,81 @@ impl Epoch {
 
             let tilt = Angle::radians(start_angle).add(Angle::frac_pi_2().neg());
 
-            match &self.segment_rule {
-                SegmentRule::Path(p) => {
-                    paths.push(p.rotate(tilt).translate(translate_by));
-                }
-                SegmentRule::EveryNth(p, nth) => {
-                    if i.rem_euclid(*nth) == 0 {
-                        paths.push(p.rotate(tilt).translate(translate_by));
-                    }
-                }
-                SegmentRule::OddEven(odd_p, even_p) => {
-                    let p = if i.rem_euclid(2) == 0 { even_p } else { odd_p };
-                    paths.push(p.rotate(tilt).translate(translate_by));
-                }
-                SegmentRule::None => break,
+            with(tilt, translate_by, i)
+        }
+    }
+
+    /// Key points of all segments
+    pub fn key_pts(&self) -> Vec<Point2D<Float>> {
+        let mut all_pts = vec![];
+
+        match &self.segment_rule {
+            SegmentRule::Path(p) => {
+                let pts = p.key_pts();
+                self.segment_transforms(&mut |angle, translate, _| {
+                    pts.iter().for_each(|p| {
+                        let transformed = LineSegment {
+                            from: self.center,
+                            to: *p,
+                        }
+                        .transformed(&Rotation::new(angle))
+                        .translate(translate)
+                        .to();
+                        all_pts.push(transformed);
+                    });
+                });
             }
+            SegmentRule::EveryNth(p, nth) => {
+                let pts = p.key_pts();
+                self.segment_transforms(&mut |angle, translate, i| {
+                    if i.rem_euclid(*nth) == 0 {
+                        pts.iter().for_each(|p| {
+                            let transformed = LineSegment {
+                                from: self.center,
+                                to: *p,
+                            }
+                            .transformed(&Rotation::new(angle))
+                            .translate(translate)
+                            .to();
+                            all_pts.push(transformed);
+                        });
+                    }
+                });
+            }
+            SegmentRule::OddEven(p1, p2) => {
+                let pts_1 = p1.key_pts();
+                let pts_2 = p2.key_pts();
+                self.segment_transforms(&mut |angle, translate, i| {
+                    let p = if i.rem_euclid(2) == 0 {
+                        pts_1.clone()
+                    } else {
+                        pts_2.clone()
+                    };
+
+                    p.iter().for_each(|p| {
+                        let transformed = LineSegment {
+                            from: self.center,
+                            to: *p,
+                        }
+                        .transformed(&Rotation::new(angle))
+                        .translate(translate)
+                        .to();
+                        all_pts.push(transformed);
+                    });
+                });
+            }
+            SegmentRule::None => {}
         }
 
-        paths
+        all_pts
     }
 
     /// Given the bounds draw segment path
+    ///
+    /// The `draw` callback is called with:
+    ///
+    /// - bounding box of the inner arc
+    /// - bounding box of the outter arc
     pub fn draw_segment<F>(&mut self, mut draw: F)
     where
         F: FnMut(Rect<Float>, Rect<Float>) -> SegmentRule,
@@ -123,15 +217,15 @@ impl Epoch {
             .to_rect()
             .translate(outer_translate_by.neg());
 
-        assert!(
-            !min_rect.is_empty() && !max_rect.is_empty(),
-            "epoch has zero drawing area... {self:#?}"
-        );
-
-        self.segment_rule = draw(min_rect, max_rect);
+        // assert!(
+        if !min_rect.is_empty() && !max_rect.is_empty() {
+            self.segment_rule = draw(min_rect, max_rect);
+        }
+        //     "epoch has zero drawing area... {self:#?}"
+        // );
     }
 
-    /// scale epoch and all segments
+    /// Scale epoch and all segments
     pub fn scale(&mut self, scale: Float, old_root_center: Point2D<Float>) {
         self.radius *= scale;
         self.breadth *= scale;
@@ -147,7 +241,7 @@ impl Epoch {
         self.segment_rule.scale(scale);
     }
 
-    /// translate the epoch and its segments
+    /// Translate the epoch and its segments
     pub fn translate(&mut self, by: Vector2D<Float>) {
         self.segment_rule.translate(by);
         self.center = self.center.add_size(&Size2D::new(by.x, by.y));
@@ -158,6 +252,7 @@ impl Epoch {
 ///
 /// Paths are zero based
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SegmentRule {
     /// Draw a path
     Path(Path),
@@ -170,7 +265,20 @@ pub enum SegmentRule {
 }
 
 impl SegmentRule {
-    /// scale the segment
+    pub fn generate<R, G>(rng: &mut R, mut gen: G) -> Self
+    where
+        R: rand::Rng,
+        G: FnMut(&mut R) -> Path,
+    {
+        match rng.gen_range(0..=2) {
+            0 => Self::Path(gen(rng)),
+            1 => Self::EveryNth(gen(rng), if rng.gen_bool(0.5) { 2 } else { 3 }),
+            2 => Self::OddEven(gen(rng), gen(rng)),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Scale the segment
     pub fn scale(&mut self, scale: Float) {
         match self {
             SegmentRule::Path(p) => p.scale(scale),
@@ -183,7 +291,7 @@ impl SegmentRule {
         }
     }
 
-    /// translate the segment
+    /// Translate the segment
     pub fn translate(&mut self, by: Vector2D<Float>) {
         match self {
             SegmentRule::Path(p) => *p = p.translate(by),
