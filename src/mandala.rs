@@ -8,6 +8,7 @@ use crate::{Epoch, EpochBuilder, Float, Path, SegmentRule};
 pub struct Mandala {
     pub bounds: Box2D<Float>,
     pub epochs: Vec<Epoch>,
+    pub drawing: Vec<Path>,
 }
 
 impl Mandala {
@@ -25,15 +26,19 @@ impl Mandala {
             .build()
             .expect("build outter circle epoch");
 
+        let drawing = outer_circle.render_paths();
+
         Self {
             bounds,
+            drawing,
             epochs: vec![outer_circle],
         }
     }
 
     /// render all paths
-    pub fn render_drawing(&self) -> Vec<Path> {
-        self.epochs.iter().flat_map(|e| e.render_paths()).collect()
+    pub fn render_drawing(&mut self) -> Vec<Path> {
+        self.drawing = self.epochs.iter().flat_map(|e| e.render_paths()).collect();
+        self.drawing.clone()
     }
 
     /// draw new epoch based on the last one
@@ -41,7 +46,9 @@ impl Mandala {
     where
         F: FnMut(&Epoch) -> Epoch,
     {
-        self.epochs.push(draw(self.epochs.last().unwrap()))
+        self.epochs.push(draw(self.epochs.last().unwrap()));
+        let last = self.epochs.last().unwrap();
+        self.drawing.extend(last.render_paths());
     }
 
     /// resize the mandala to fit given size
@@ -60,6 +67,7 @@ impl Mandala {
         }
 
         self.bounds = new_bounds;
+        self.drawing = self.render_drawing();
     }
 
     /// translate the mandala and all its contents
@@ -77,10 +85,7 @@ impl Mandala {
                 .iter()
                 .map(|e| Point2D::new(OrderedFloat(e.center.x), OrderedFloat(e.center.y))),
         );
-        let all_segments = self
-            .render_drawing()
-            .into_iter()
-            .flat_map(|p| p.into_iter());
+        let all_segments = self.drawing.iter().flat_map(|p| p.clone().into_iter());
 
         let mut displacements = HashSet::new();
 

@@ -36,14 +36,7 @@ impl Epoch {
     pub fn render_paths(&self) -> Vec<Path> {
         let mut paths = Vec::new();
         let radius = self.radius - self.breadth;
-        let ring = Arc {
-            center: self.center,
-            radii: Vector2D::new(radius, radius),
-            start_angle: Angle::zero(),
-            sweep_angle: Angle::two_pi(),
-            // appears as 0 length when not rotated...
-            x_rotation: Angle::two_pi(),
-        };
+        let ring = Arc::circle(self.center, radius);
         paths.push(Path::new(Segment::Arc(ring.to_svg_arc())));
 
         let angle_step = Angle::<Float>::two_pi().radians / {
