@@ -80,9 +80,9 @@ pub struct ReplicaSegment {
 impl ReplicaSegment {
     /// render all paths of the original with the angle_base of the replica
     pub fn render(&self, original: &MandalaSegment) -> Vec<Path> {
-        let diff = self.angle_base - original.angle_base;
-        let drawing = original.render();
-        drawing.into_iter().map(|r| r.rotate(diff)).collect()
+        let mut segment = original.clone();
+        segment.angle_base = self.angle_base;
+        segment.render()
     }
 }
 
@@ -235,12 +235,12 @@ mod test_segement {
         let rendered_path = &rendered_paths[0];
         assert_eq!(
             rendered_path.from(),
-            Point::new(3.898441400170306, 4.487846495580896),
+            Point::new(3.8793322159386543, 4.51688959557377),
             "from point"
         );
         assert_eq!(
             rendered_path.to(),
-            Point::new(3.909476572005575, 4.523711154386932),
+            Point::new(3.8617126862418067, 4.582281071622571),
             "to point"
         );
     }

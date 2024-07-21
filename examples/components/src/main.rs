@@ -1,8 +1,8 @@
 use glutin_window::GlutinWindow as Window;
 use mandala::{
-    Angle, ArcFlags, CubicCurve, FillValue, GeneratorBuilder, GeneratorMode, Line, MandalaSegment,
-    MandalaSegmentBuilder, Path, PathSegment, Point, QuadraticCurve, Rect, SegmentDrawing, Size,
-    SvgArc, Transform, Vector,
+    Angle, ArcFlags, CubicCurve, DrawArgs, EpochBuilder, EpochLayout, FillValue, GeneratorBuilder,
+    GeneratorMode, Line, MandalaSegment, MandalaSegmentBuilder, Path, PathSegment, Point,
+    QuadraticCurve, Rect, SegmentDrawing, Size, SvgArc, Transform, Vector,
 };
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
@@ -22,10 +22,10 @@ pub struct App {
     segment_drawing_arcs: Vec<Path>,
     segment_drawing_cubics: Vec<Path>,
     segment_drawing_qads: Vec<Path>,
+    epoch_drawing: Vec<Path>,
 }
 
 const SIZE: u32 = 800;
-const RND_SIZE: u32 = 60;
 
 impl App {
     fn render(&mut self, args: &RenderArgs) {
@@ -52,13 +52,14 @@ impl App {
                 .chain(self.segment_drawing_arcs.clone())
                 .chain(self.segment_drawing_cubics.clone())
                 .chain(self.segment_drawing_qads.clone())
+                .chain(self.epoch_drawing.clone())
             {
                 for s in p.into_iter() {
                     let clr = match s {
-                        mandala::PathSegment::Line(_) => WHITE,
                         mandala::PathSegment::Arc(_) => RED,
                         mandala::PathSegment::QuadraticCurve(_) => BLUE,
                         mandala::PathSegment::CubicCurve(_) => PURPLE,
+                        _ => WHITE,
                     };
 
                     for l in s.flattened() {
@@ -98,7 +99,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let center = Point::new(400.0, 400.0);
+    let center = Point::new(180.0, 250.0);
     let sweep = Angle::frac_pi_3();
 
     let mut drawing = Vec::new();
@@ -256,6 +257,55 @@ fn main() {
         .build()
         .unwrap();
 
+    let radius = 100.0;
+
+    let mut epoch = EpochBuilder::default()
+        .center(center.add_size(&Size::new(300.0, 0.0)))
+        .layout(EpochLayout::Circle { radius })
+        .build()
+        .unwrap();
+
+    let renderer = |_rng: &mut SmallRng| {
+        Path::new(PathSegment::Arc(SvgArc {
+            from: Point::new(0.0, 0.0),
+            to: Point::new(10.0, 3.0),
+            radii: Vector::splat(15.0),
+            x_rotation: Angle::zero(),
+            flags: ArcFlags::default(),
+        }))
+    };
+
+    let mut gen = GeneratorBuilder::default()
+        .renderer(renderer)
+        .transform(Transform::Rotate(FillValue::Incremental {
+            init: Angle::radians(0.001),
+            increment: Angle::radians(0.01),
+        }))
+        .mode(GeneratorMode::GridStep {
+            row_height: 8.0,
+            column_width: 10.0,
+        })
+        .build()
+        .unwrap();
+
+    let pattern = gen.generate(Rect::from_size(Size::new(100.0, 100.0)));
+
+    let mut draw_fn = |args: &DrawArgs| {
+        MandalaSegmentBuilder::default()
+            .angle_base(args.start_angle)
+            .sweep(Angle::frac_pi_4())
+            .center(args.center)
+            .r_base(radius)
+            .breadth(50.0)
+            .drawing(vec![SegmentDrawing::Path(pattern.clone())])
+            .build()
+            .unwrap()
+    };
+
+    epoch.draw_fill(&mut draw_fn);
+
+    let epoch_drawing = epoch.render();
+
     let mut app = App {
         drawing,
         gl: GlGraphics::new(opengl),
@@ -267,6 +317,7 @@ fn main() {
         segment_arcs,
         segment_cubics,
         segment_quads,
+        epoch_drawing,
     };
 
     let mut events = Events::new(EventSettings::new());

@@ -7,7 +7,7 @@ use euclid::{default::Translation2D, Rotation2D, Scale};
 
 use ordered_float::OrderedFloat;
 
-use crate::{Angle, Arc, CubicCurve, Float, Line, Point, QuadraticCurve, SvgArc, Vector};
+use crate::{Angle, Arc, CubicCurve, Float, Line, Point, QuadraticCurve, Size, SvgArc, Vector};
 
 /// Continuous path
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -36,6 +36,25 @@ impl Path {
         );
 
         self.0.push_front(next);
+    }
+
+    /// insert a point to move to
+    pub fn move_to(&mut self, pt: Point) {
+        assert!(
+            self.0.is_empty(),
+            "move to is only applicable to empty path"
+        );
+
+        self.0.push_front(PathSegment::Point(pt));
+    }
+
+    /// tests if the path is closed
+    pub fn is_closed(&self) -> bool {
+        self.0
+            .front()
+            .zip(self.0.back())
+            .map(|(f, b)| f.from() == b.to())
+            .unwrap_or(false)
     }
 
     /// Total length of all path segments
@@ -79,11 +98,60 @@ impl Path {
     pub fn flattened(&self) -> Vec<Line> {
         self.0.iter().flat_map(|s| s.flattened()).collect()
     }
+
+    /// render path to svg path.d
+    pub fn to_svg_path_d(&self) -> String {
+        let mut it = self.0.iter();
+        let first = it.next().expect("path must not be empty");
+        let mut d = format!("M {},{}", first.from().x, first.from().y);
+
+        match first {
+            PathSegment::Point(_) => {}
+            _ => it = self.0.iter(),
+        }
+
+        while let Some(s) = it.next() {
+            match s {
+                PathSegment::Line(s) => {
+                    d.push_str(&format!(" L {},{}", s.to.x, s.to.y));
+                }
+                PathSegment::Arc(s) => {
+                    d.push_str(&format!(
+                        " A {},{} {} {} {} {},{}",
+                        s.radii.x,
+                        s.radii.y,
+                        s.x_rotation.to_degrees(),
+                        s.flags.large_arc as u8,
+                        s.flags.sweep as u8,
+                        s.to.x,
+                        s.to.y
+                    ));
+                }
+                PathSegment::QuadraticCurve(s) => {
+                    d.push_str(&format!(
+                        " Q {},{} {},{}",
+                        s.ctrl.x, s.ctrl.y, s.to.x, s.to.y
+                    ));
+                }
+                PathSegment::CubicCurve(s) => {
+                    d.push_str(&format!(
+                        " C {},{} {},{} {},{}",
+                        s.ctrl1.x, s.ctrl1.y, s.ctrl2.x, s.ctrl2.y, s.to.x, s.to.y
+                    ));
+                }
+                _ => unimplemented!("for {s:?}"),
+            }
+        }
+
+        d
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathSegment {
+    /// point
+    Point(Point),
     /// staright line
     Line(Line),
     /// arc
@@ -98,6 +166,9 @@ impl PathSegment {
     /// flip the segment along the vertical axis, where the axis is positioned at a given `x` coordinate
     pub fn flip_along_y(&self, x_pos_axis: Float) -> Self {
         match self {
+            PathSegment::Point(p) => {
+                PathSegment::Point(Point::new(x_pos_axis - (p.x - x_pos_axis), p.y))
+            }
             PathSegment::Line(s) => PathSegment::Line(Line {
                 to: Point::new(x_pos_axis - (s.from.x - x_pos_axis), s.from.y),
                 from: Point::new(x_pos_axis - (s.to.x - x_pos_axis), s.to.y),
@@ -126,6 +197,7 @@ impl PathSegment {
     /// length of the segment
     pub fn length(&self) -> Float {
         match self {
+            PathSegment::Point(_) => 0.0,
             PathSegment::Line(s) => s.length(),
             PathSegment::Arc(s) => {
                 let mut len = 0.0;
@@ -145,6 +217,7 @@ impl PathSegment {
     /// start point
     pub fn from(&self) -> Point {
         match self {
+            PathSegment::Point(p) => *p,
             PathSegment::Line(s) => s.from,
             PathSegment::Arc(s) => s.from,
             PathSegment::QuadraticCurve(s) => s.from,
@@ -155,6 +228,7 @@ impl PathSegment {
     /// end point
     pub fn to(&self) -> Point {
         match self {
+            PathSegment::Point(p) => *p,
             PathSegment::Line(s) => s.to,
             PathSegment::Arc(s) => s.to,
             PathSegment::QuadraticCurve(s) => s.to,
@@ -165,6 +239,7 @@ impl PathSegment {
     /// Key points of this segment
     pub fn key_pts(&mut self) -> Vec<&mut Point> {
         match self {
+            PathSegment::Point(p) => vec![p],
             PathSegment::Line(l) => vec![&mut l.from, &mut l.to],
             PathSegment::Arc(a) => {
                 vec![&mut a.from, &mut a.to]
@@ -177,6 +252,7 @@ impl PathSegment {
     /// translate the segment
     pub fn translate(&self, by: Vector) -> Self {
         match self {
+            PathSegment::Point(p) => PathSegment::Point(p.add_size(&Size::new(by.x, by.y))),
             PathSegment::Line(s) => PathSegment::Line(s.clone().translate(by)),
             PathSegment::Arc(s) => PathSegment::Arc(SvgArc {
                 from: Point::new(s.from.x + by.x, s.from.y + by.y),
@@ -197,6 +273,10 @@ impl PathSegment {
     /// rotate the segment
     pub fn rotate(&self, by: Angle) -> Self {
         match self {
+            PathSegment::Point(p) => PathSegment::Point(Point::new(
+                p.x * by.radians.cos() - p.y * by.radians.sin(),
+                p.x * by.radians.sin() + p.y * by.radians.cos(),
+            )),
             PathSegment::Line(s) => PathSegment::Line(s.clone().transformed(&Rotation2D::new(by))),
             PathSegment::Arc(s) => {
                 assert!(!s.is_straight_line(), "arc is a straight line... {s:#?}");
@@ -230,6 +310,7 @@ impl PathSegment {
     /// scale the segment
     pub fn scale(&self, scale: Float) -> Self {
         match self {
+            PathSegment::Point(p) => PathSegment::Point(Point::new(p.x * scale, p.y * scale)),
             PathSegment::Line(l) => PathSegment::Line(l.clone().transformed(&Scale::new(scale))),
             PathSegment::Arc(l) => {
                 let arc = l.to_arc();
@@ -282,7 +363,7 @@ impl PathSegment {
     /// naive tolerance
     pub fn tolerable(&self) -> Float {
         match self {
-            PathSegment::Line(_) => 0.0,
+            PathSegment::Line(_) | PathSegment::Point(_) => 0.0,
             PathSegment::Arc(a) => a.radii.x.min(a.radii.y) / self.length(),
             PathSegment::QuadraticCurve(q) => quadratic_tolerance(*q).into(),
             PathSegment::CubicCurve(c) => {
@@ -308,13 +389,14 @@ impl PathSegment {
                     .into()
             }
         }
-        .max(lyon_geom::Scalar::epsilon_for(Float::EPSILON))
+        .max(lyon_geom::Scalar::epsilon_for(Float::EPSILON).powi(2))
     }
 
     /// flattened curve with naive tolerance
     pub fn flattened(&self) -> Vec<Line> {
         let tolerance = self.tolerable();
         match self {
+            PathSegment::Point(l) => vec![Line { from: *l, to: *l }],
             PathSegment::Line(l) => vec![*l],
             PathSegment::Arc(a) => {
                 let mut lns = vec![];
@@ -620,7 +702,7 @@ mod tests {
             to: Point::new(4.0, 1.0),
         });
 
-        assert_eq!(line.tolerable(), 1e-8);
+        assert_eq!(line.tolerable(), 1.0000000000000001e-16);
 
         assert_eq!(arc.tolerable(), 0.6355488958496096);
         assert_eq!(quadratic_curve.tolerable(), 0.616057448634553);
@@ -663,5 +745,64 @@ mod tests {
 
         let intersections = arc.intersection(&quadratic_curve);
         assert!(intersections.is_none());
+    }
+
+    #[test]
+    fn test_closed_path() {
+        let line = PathSegment::Line(Line {
+            from: Point::new(0.0, 0.0),
+            to: Point::new(1.0, 1.0),
+        });
+        let mut path = Path::new(line);
+
+        path.draw_next(|last| {
+            assert_eq!(last.to(), Point::new(1.0, 1.0));
+            PathSegment::Line(Line {
+                from: last.to(),
+                to: Point::new(0.0, 0.0),
+            })
+        });
+
+        assert!(path.is_closed());
+    }
+
+    #[test]
+    fn test_to_svg_path_d() {
+        let line = PathSegment::Line(Line {
+            from: Point::new(0.0, 0.0),
+            to: Point::new(1.0, 1.0),
+        });
+        let mut path = Path::new(line);
+
+        path.draw_next(|last| {
+            PathSegment::Arc(SvgArc {
+                from: last.to(),
+                to: Point::new(2.0, 0.0),
+                radii: Vector2D::new(1.0, 1.0),
+                x_rotation: Angle::degrees(40.0),
+                flags: Default::default(),
+            })
+        });
+        path.draw_next(|last| {
+            PathSegment::QuadraticCurve(QuadraticCurve {
+                from: last.to(),
+                ctrl: Point::new(3.0, 2.0),
+                to: Point::new(4.0, 1.0),
+            })
+        });
+        path.draw_next(|last| {
+            PathSegment::CubicCurve(CubicCurve {
+                from: last.to(),
+                ctrl1: Point::new(5.0, 2.0),
+                ctrl2: Point::new(6.0, 0.0),
+                to: Point::new(7.0, 1.0),
+            })
+        });
+
+        let svg_path_d = path.to_svg_path_d();
+        assert_eq!(
+            svg_path_d,
+            "M 4,1 C 5,2 6,0 7,1 Q 3,2 4,1 A 1,1 40 0 0 2,0 L 1,1"
+        );
     }
 }

@@ -77,7 +77,7 @@ pub fn App() -> impl IntoView {
         Path::new(PathSegment::CubicCurve(CubicCurve {
             from: Point::new(0.0, 0.0),
             ctrl1: Point::new(3.0, 5.0),
-            ctrl2: Point::new(7.0, 5.0),
+            ctrl2: Point::new(-7.0, -5.0),
             to: Point::new(10.0, 0.0),
         }))
     };
@@ -169,14 +169,67 @@ pub fn App() -> impl IntoView {
             .build()
             .unwrap();
 
-        (segment_lines, segment_arcs, segment_cubics, segment_quads)
+        let radius = 100.0;
+
+        let mut epoch = EpochBuilder::default()
+            .center(center.add_size(&Size::new(300.0, 0.0)))
+            .layout(EpochLayout::Circle { radius })
+            .build()
+            .unwrap();
+
+        let renderer = |_rng: &mut SmallRng| {
+            Path::new(PathSegment::Arc(SvgArc {
+                from: Point::new(0.0, 0.0),
+                to: Point::new(10.0, 3.0),
+                radii: Vector::splat(15.0),
+                x_rotation: Angle::zero(),
+                flags: ArcFlags::default(),
+            }))
+        };
+
+        let mut gen = GeneratorBuilder::default()
+            .renderer(renderer)
+            .transform(Transform::Rotate(FillValue::Incremental {
+                init: Angle::radians(0.001),
+                increment: Angle::radians(0.01),
+            }))
+            .mode(GeneratorMode::GridStep {
+                row_height: 8.0,
+                column_width: 10.0,
+            })
+            .build()
+            .unwrap();
+
+        let pattern = gen.generate(Rect::from_size(Size::new(100.0, 100.0)));
+
+        let mut draw_fn = |args: &DrawArgs| {
+            MandalaSegmentBuilder::default()
+                .angle_base(args.start_angle)
+                .sweep(Angle::frac_pi_4())
+                .center(args.center)
+                .r_base(radius)
+                .breadth(50.0)
+                .drawing(vec![SegmentDrawing::Path(pattern.clone())])
+                .build()
+                .unwrap()
+        };
+
+        epoch.draw_fill(&mut draw_fn);
+
+        (
+            segment_lines,
+            segment_arcs,
+            segment_cubics,
+            segment_quads,
+            epoch,
+        )
     });
 
     create_effect(move |_| {
         let _ = counter.get() as f64;
 
         set_segments.update(|segments| {
-            let (segment_lines, segment_arcs, segment_cubics, segment_quads) = segments;
+            let (segment_lines, segment_arcs, segment_cubics, segment_quads, _) = segments;
 
             segment_quads.angle_base += Angle::degrees(1.0);
             segment_cubics.angle_base += Angle::degrees(1.0);
@@ -196,8 +249,8 @@ pub fn App() -> impl IntoView {
         <Meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
         <svg>
-            {move || drawing.clone().iter().flat_map(|p| p.flattened()).map(|l| view!{
-                <path d={format!("M {x1},{y1} L{x2},{y2}", x1 = l.from.x, x2 = l.to.x, y1 = l.from.y, y2 = l.to.y)} stroke="orange"/>
+            {move || drawing.clone().iter().map(|p| view!{
+                <path d={p.translate(Vector::new(0.0,  15.0)).to_svg_path_d()} stroke="orange"/>
             }).collect_view()}
 
             {move || {
@@ -206,25 +259,30 @@ pub fn App() -> impl IntoView {
                     segment_cubics,
                     segment_arcs,
                     segment_lines,
+                    epoch
                 ) = segments.get();
 
-                let v1 = segment_quads.render().iter().flat_map(|p| p.flattened()).map(|l| view!{
-                    <path d={format!("M {x1},{y1} L{x2},{y2}", x1 = l.from.x, x2 = l.to.x, y1 = l.from.y, y2 = l.to.y)} stroke="blue"/>
+                let v1 = segment_quads.render().iter().map(|p| view!{
+                    <path d={p.to_svg_path_d()} stroke="blue"/>
                 }).collect_view();
-                let v2 = segment_arcs.render().iter().flat_map(|p| p.flattened()).map(|l| view!{
-                    <path d={format!("M {x1},{y1} L{x2},{y2}", x1 = l.from.x, x2 = l.to.x, y1 = l.from.y, y2 = l.to.y)} stroke="red"/>
+                let v2 = segment_arcs.render().iter().map(|p| view!{
+                    <path d={p.to_svg_path_d()} stroke="red"/>
                 }).collect_view();
-                let v3 = segment_cubics.render().iter().flat_map(|p| p.flattened()).map(|l| view!{
-                    <path d={format!("M {x1},{y1} L{x2},{y2}", x1 = l.from.x, x2 = l.to.x, y1 = l.from.y, y2 = l.to.y)} stroke="green"/>
+                let v3 = segment_cubics.render().iter().map(|p| view!{
+                    <path d={p.to_svg_path_d()} stroke="green"/>
                 }).collect_view();
-                let v4 = segment_lines.render().iter().flat_map(|p| p.flattened()).map(|l| view!{
-                    <path d={format!("M {x1},{y1} L{x2},{y2}", x1 = l.from.x, x2 = l.to.x, y1 = l.from.y, y2 = l.to.y)} stroke="purple"/>
+                let v4 = segment_lines.render().iter().map(|p| view!{
+                    <path d={p.to_svg_path_d()} stroke="purple"/>
+                }).collect_view();
+                let v5 = epoch.render().iter().map(|p| view!{
+                    <path d={p.to_svg_path_d()} stroke="white"/>
                 }).collect_view();
                 view!{
                     {v1}
                     {v2}
                     {v3}
                     {v4}
+                    {v5}
                 }
             }}
         </svg>
