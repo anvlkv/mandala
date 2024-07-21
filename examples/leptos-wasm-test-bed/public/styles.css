@@ -1,0 +1,10 @@
+body {
+    margin: 0;
+    background-color: black;
+}
+
+svg {
+    width: 90vw;
+    height: 90vh;
+    margin: 5vh 5vw;
+}

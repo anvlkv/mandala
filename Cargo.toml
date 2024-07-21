@@ -1,6 +1,7 @@
 [package]
 name = "mandala"
-version = "0.1.0"
+description = "Set of utilities for generative radial drawing and layout"
+version = "0.2.0"
 edition = "2021"
 authors = ["a.nvlkv <a.nvlkv@pm.me>"]
 keywords = ["generative", "radial", "drawing"]
@@ -14,9 +15,13 @@ ordered-float = { version = "4.0", default-features = false }
 rand = { version = "0.8.5", features = ["small_rng"] }
 rand_chacha = "0.3.1"
 serde = { version = "1.0.204", optional = true }
+uuid = { version = "1.10.0", features = ["v4"] }
 
 
 [features]
+default = ["f64", "serde"]
+f32 = []
+f64 = []
 serde = [
     "euclid/serde",
     "ordered-float/serde",
@@ -24,8 +29,9 @@ serde = [
     "rand_chacha/serde",
     "const-primes/serde",
     "lyon_geom/serialization",
+    "uuid/serde",
     "dep:serde",
 ]
 
 [workspace]
-members = ["./examples/piston-test-bed", "examples/components"]
+members = ["./examples/piston-test-bed", "examples/components", "examples/leptos-wasm-test-bed"]
