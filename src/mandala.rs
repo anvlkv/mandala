@@ -17,4 +17,4 @@ impl Mandala {
 }
 
 #[cfg(test)]
-mod tests {}
+mod mandala_tests {}

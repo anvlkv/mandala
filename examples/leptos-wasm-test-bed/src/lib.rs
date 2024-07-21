@@ -14,7 +14,7 @@ pub fn App() -> impl IntoView {
     let UseIntervalReturn { counter, .. } = use_interval(50);
 
     let mut drawing = Vec::new();
-    let renderer = |_rng: &mut SmallRng| {
+    let renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::Line(Line {
             from: Point::new(0.0, 0.0),
             to: Point::new(10.0, 3.0),
@@ -38,7 +38,7 @@ pub fn App() -> impl IntoView {
 
     drawing.extend(pattern.clone());
 
-    let arc_renderer = |_rng: &mut SmallRng| {
+    let arc_renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::Arc(SvgArc {
             from: Point::new(0.0, 0.0),
             to: Point::new(10.0, 10.0),
@@ -73,7 +73,7 @@ pub fn App() -> impl IntoView {
             .map(|p| p.translate(Vector::new(120.0, 0.0))),
     );
 
-    let cubic_renderer = |_rng: &mut SmallRng| {
+    let cubic_renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::CubicCurve(CubicCurve {
             from: Point::new(0.0, 0.0),
             ctrl1: Point::new(3.0, 5.0),
@@ -101,7 +101,7 @@ pub fn App() -> impl IntoView {
             .map(|p| p.translate(Vector::new(120.0 * 2.0, 0.0))),
     );
 
-    let quad_renderer = |_rng: &mut SmallRng| {
+    let quad_renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::QuadraticCurve(QuadraticCurve {
             from: Point::new(0.0, 0.0),
             ctrl: Point::new(5.0, 10.0),
@@ -177,7 +177,7 @@ pub fn App() -> impl IntoView {
             .build()
             .unwrap();
 
-        let renderer = |_rng: &mut SmallRng| {
+        let renderer = |_rng: &mut SmallRng, _| {
             Path::new(PathSegment::Arc(SvgArc {
                 from: Point::new(0.0, 0.0),
                 to: Point::new(10.0, 3.0),

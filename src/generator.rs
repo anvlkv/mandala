@@ -56,7 +56,7 @@ pub fn polygon(sides: u8, bounds: Rect) -> Path {
 #[derive(Debug, Clone, Builder)]
 pub struct Generator<F, R>
 where
-    F: Fn(&mut R) -> Path + Clone + Copy + 'static,
+    F: Fn(&mut R, Size) -> Path + Clone + Copy + 'static,
     R: Rng + SeedableRng,
 {
     /// Fill mode
@@ -216,7 +216,7 @@ impl GeneratorMode {
 
 impl<F, R> Generator<F, R>
 where
-    F: Fn(&mut R) -> Path + Clone + Copy + 'static,
+    F: Fn(&mut R, Size) -> Path + Clone + Copy + 'static,
     R: Rng + SeedableRng,
 {
     /// runs generation
@@ -228,7 +228,7 @@ where
         let rng = &mut self.rng;
 
         while let Some((i, rect)) = it.next() {
-            let mut path = render_fn(rng);
+            let mut path = render_fn(rng, rect.size);
             for transofrm in self.transformations.iter() {
                 match transofrm {
                     Transform::Scale(value) => {
@@ -267,6 +267,13 @@ mod generator_test {
         let pt = rand_pt_in_bounds(&mut rng, bounds);
         assert!(pt.x >= 0.0 && pt.x <= 10.0);
         assert!(pt.y >= 0.0 && pt.y <= 10.0);
+    }
+
+    #[test]
+    fn test_polygon_generator() {
+        let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0));
+        let path = polygon(4, bounds);
+        assert_eq!(path.into_iter().len(), 4);
     }
 
     #[test]
@@ -421,7 +428,7 @@ mod generator_test {
         let rng = SmallRng::seed_from_u64(64);
         let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0));
 
-        let renderer = |_rng: &mut SmallRng| {
+        let renderer = |_rng: &mut SmallRng, _| {
             Path::new(PathSegment::Line(LineSegment {
                 from: Point::new(0.0, 0.0),
                 to: Point::new(1.0, 1.0),

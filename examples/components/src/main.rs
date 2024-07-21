@@ -1,8 +1,8 @@
 use glutin_window::GlutinWindow as Window;
 use mandala::{
-    Angle, ArcFlags, CubicCurve, DrawArgs, EpochBuilder, EpochLayout, FillValue, GeneratorBuilder,
-    GeneratorMode, Line, MandalaSegment, MandalaSegmentBuilder, Path, PathSegment, Point,
-    QuadraticCurve, Rect, SegmentDrawing, Size, SvgArc, Transform, Vector,
+    Angle, ArcFlags, CubicCurve, DrawArgs, Epoch, EpochBuilder, EpochLayout, FillValue,
+    GeneratorBuilder, GeneratorMode, Line, MandalaSegment, MandalaSegmentBuilder, Path,
+    PathSegment, Point, QuadraticCurve, Rect, SegmentDrawing, Size, SvgArc, Transform, Vector,
 };
 use opengl_graphics::{GlGraphics, OpenGL};
 use piston::event_loop::{EventSettings, Events};
@@ -23,6 +23,8 @@ pub struct App {
     segment_drawing_cubics: Vec<Path>,
     segment_drawing_qads: Vec<Path>,
     epoch_drawing: Vec<Path>,
+    epoch: Epoch,
+    update_t: f64,
 }
 
 const SIZE: u32 = 800;
@@ -85,6 +87,26 @@ impl App {
         self.segment_drawing_cubics = self.segment_cubics.render();
         self.segment_quads.angle_base += Angle::radians(u.dt);
         self.segment_drawing_qads = self.segment_quads.render();
+
+        self.update_t += u.dt;
+
+        // if self.update_t >= 0.5 {
+        //     self.update_t = 0.0;
+        //     self.epoch.layout = match self.epoch.layout {
+        //         EpochLayout::Circle { radius } => EpochLayout::Ellipse {
+        //             radii: Size::new(radius, radius / 2.0),
+        //         },
+        //         EpochLayout::Ellipse { radii } => EpochLayout::Polygon {
+        //             n_sides: 7,
+        //             radius: radii.width,
+        //         },
+        //         EpochLayout::Polygon { radius, .. } => EpochLayout::Rectangle {
+        //             rect: Size::new(radius, radius * 2.0),
+        //         },
+        //         EpochLayout::Rectangle { rect } => EpochLayout::Circle { radius: rect.width },
+        //     };
+        //     self.epoch_drawing = self.epoch.render();
+        // }
     }
 }
 
@@ -103,7 +125,7 @@ fn main() {
     let sweep = Angle::frac_pi_3();
 
     let mut drawing = Vec::new();
-    let renderer = |_rng: &mut SmallRng| {
+    let renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::Line(Line {
             from: Point::new(0.0, 0.0),
             to: Point::new(10.0, 3.0),
@@ -137,7 +159,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let arc_renderer = |_rng: &mut SmallRng| {
+    let arc_renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::Arc(SvgArc {
             from: Point::new(0.0, 0.0),
             to: Point::new(10.0, 10.0),
@@ -182,7 +204,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let cubic_renderer = |_rng: &mut SmallRng| {
+    let cubic_renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::CubicCurve(CubicCurve {
             from: Point::new(0.0, 0.0),
             ctrl1: Point::new(3.0, 5.0),
@@ -220,7 +242,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let quad_renderer = |_rng: &mut SmallRng| {
+    let quad_renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::QuadraticCurve(QuadraticCurve {
             from: Point::new(0.0, 0.0),
             ctrl: Point::new(5.0, 10.0),
@@ -265,7 +287,7 @@ fn main() {
         .build()
         .unwrap();
 
-    let renderer = |_rng: &mut SmallRng| {
+    let renderer = |_rng: &mut SmallRng, _| {
         Path::new(PathSegment::Arc(SvgArc {
             from: Point::new(0.0, 0.0),
             to: Point::new(10.0, 3.0),
@@ -307,17 +329,19 @@ fn main() {
     let epoch_drawing = epoch.render();
 
     let mut app = App {
-        drawing,
         gl: GlGraphics::new(opengl),
+        update_t: 0.0,
         segment_drawing_lines: segment_lines.render(),
         segment_drawing_arcs: segment_arcs.render(),
         segment_drawing_cubics: segment_cubics.render(),
         segment_drawing_qads: segment_quads.render(),
+        drawing,
         segment_lines,
         segment_arcs,
         segment_cubics,
         segment_quads,
         epoch_drawing,
+        epoch,
     };
 
     let mut events = Events::new(EventSettings::new());
