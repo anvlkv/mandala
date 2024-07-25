@@ -173,7 +173,10 @@ pub fn App() -> impl IntoView {
 
         let mut epoch = EpochBuilder::default()
             .center(center.add_size(&Size::new(300.0, 0.0)))
-            .layout(EpochLayout::Circle { radius })
+            .layout(EpochLayout::Circle {
+                radius: radius - 50.0,
+            })
+            .outline(true)
             .build()
             .unwrap();
 
@@ -226,15 +229,32 @@ pub fn App() -> impl IntoView {
     });
 
     create_effect(move |_| {
-        let _ = counter.get() as f64;
+        let c = counter.get();
 
         set_segments.update(|segments| {
-            let (segment_lines, segment_arcs, segment_cubics, segment_quads, _) = segments;
+            let (segment_lines, segment_arcs, segment_cubics, segment_quads, ep) = segments;
 
             segment_quads.angle_base += Angle::degrees(1.0);
             segment_cubics.angle_base += Angle::degrees(1.0);
             segment_arcs.angle_base += Angle::degrees(1.0);
             segment_lines.angle_base += Angle::degrees(1.0);
+
+            if c.rem_euclid(9) == 0 {
+                ep.layout = match ep.layout {
+                    EpochLayout::Circle { radius } => EpochLayout::Ellipse {
+                        radii: Size::new(radius, radius / 2.0),
+                    },
+                    EpochLayout::Ellipse { radii } => EpochLayout::Polygon {
+                        n_sides: 7,
+                        radius: radii.width,
+                        start: Angle::frac_pi_4() * c as f64,
+                    },
+                    EpochLayout::Polygon { radius, .. } => EpochLayout::Rectangle {
+                        rect: Size::new(radius, radius * 2.0),
+                    },
+                    EpochLayout::Rectangle { rect } => EpochLayout::Circle { radius: rect.width },
+                };
+            }
         })
     });
 
@@ -285,6 +305,30 @@ pub fn App() -> impl IntoView {
                     {v5}
                 }
             }}
+
+            {(3..=10).map(|i| {
+                let d = Path::polygon(i, Rect::new(Point::zero(), Size::new(50.0, 50.0)), Angle::zero()).to_svg_path_d();
+                let t =format!("translate(900.0, {})", (i - 2) * 60);
+                log::debug!("d: {d}");
+                view!{
+                    <g transform={t}>
+                        <path d={d} stroke="white"/>
+                    </g>
+                }
+            }).collect_view()}
+
+        {(3..=10).map(|i| {
+            let r = i  as f64 * 5.07;
+            let pt = Point::new(
+                1100.0,
+                (i) as f64 * (r + 5.07)
+            );
+            let d = Path::circle(pt, r).to_svg_path_d();
+            log::debug!("r: {r} d: {d} pt: {pt:?}");
+            view!{
+                <path d={d} stroke="white"/>
+            }
+        }).collect_view()}
         </svg>
     }
 }

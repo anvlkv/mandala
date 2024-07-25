@@ -4,7 +4,7 @@ use derive_builder::Builder;
 
 use rand::prelude::*;
 
-use crate::{Angle, Float, Line, Path, PathSegment, Point, Rect, Size, Vector};
+use crate::{Angle, Float, Path, Point, Rect, Size, Vector};
 
 pub fn rand_pt_in_bounds<R>(rng: &mut R, bounds: Rect) -> Point
 where
@@ -23,33 +23,6 @@ where
     };
 
     Point::new(x, y)
-}
-
-pub fn polygon(sides: u8, bounds: Rect) -> Path {
-    let center = bounds.center();
-    let radius = bounds.width().min(bounds.height()) / 2.0;
-    let angle_step = 2.0 * std::f64::consts::PI / sides as f64;
-
-    let mut path = Path::default();
-    for i in 0..sides {
-        let angle = i as f64 * angle_step;
-        let x = center.x + radius * angle.cos();
-        let y = center.y + radius * angle.sin();
-        let point = Point::new(x, y);
-
-        if i == 0 {
-            path.move_to(point);
-        } else {
-            path.draw_next(|last| {
-                PathSegment::Line(Line {
-                    from: last.to(),
-                    to: point,
-                })
-            });
-        }
-    }
-
-    path
 }
 
 /// Fill pattern generator
@@ -125,6 +98,8 @@ where
 /// Fill modes
 #[derive(Debug, Clone)]
 pub enum GeneratorMode {
+    /// Render one block
+    Block,
     /// repeat every N units along X axis
     XStep(Float),
     /// repeat every N units along Y axis
@@ -142,6 +117,10 @@ impl GeneratorMode {
     /// create an iterator for the given bounds
     pub fn bounds_iter(&self, bounds: Rect) -> Box<dyn Iterator<Item = Rect> + '_> {
         match self {
+            GeneratorMode::Block => {
+                let mut b = Some(bounds);
+                Box::new(std::iter::from_fn(move || b.take()))
+            }
             GeneratorMode::XStep(step) => {
                 let mut x = bounds.min_x();
                 Box::new(std::iter::from_fn(move || {
@@ -267,13 +246,6 @@ mod generator_test {
         let pt = rand_pt_in_bounds(&mut rng, bounds);
         assert!(pt.x >= 0.0 && pt.x <= 10.0);
         assert!(pt.y >= 0.0 && pt.y <= 10.0);
-    }
-
-    #[test]
-    fn test_polygon_generator() {
-        let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0));
-        let path = polygon(4, bounds);
-        assert_eq!(path.into_iter().len(), 4);
     }
 
     #[test]

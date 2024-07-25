@@ -1,7 +1,7 @@
 use derive_builder::Builder;
 use uuid::Uuid;
 
-use crate::{Angle, Float, Mandala, Path, Point};
+use crate::{Angle, BBox, Float, Mandala, Path, Point};
 
 /// radial segment
 ///
@@ -41,10 +41,6 @@ pub struct MandalaSegment {
     /// normalize local coordinates as fraction of corresponding radial dimension
     ///
     /// **Default** is 100.0
-    ///
-    /// -50.0 along the circumference axis matches the leftmost position, 50.0 is the rightmost
-    ///
-    /// 0.0 along the radius axis matches the edge of the inner circle, 100.0 is the outter circle
     #[builder(default = "100.0")]
     pub normalized: Float,
     /// the raw drawing of this segment.
@@ -62,38 +58,19 @@ pub enum SegmentDrawing {
     Path(Vec<Path>),
     /// nested [mandala::Mandala] drawing. Reintroduces coordinate system
     /// with a new center
-    Mandala(Mandala),
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, Builder)]
-pub struct ReplicaSegment {
-    /// id of this segment
-    #[builder(default = "uuid::Uuid::new_v4()")]
-    pub id: Uuid,
-    /// id of the segment to replicate
-    pub replica_id: Uuid,
-    /// adjusted angle of the replicated segment
-    pub angle_base: Angle,
-}
-
-impl ReplicaSegment {
-    /// render all paths of the original with the angle_base of the replica
-    pub fn render(&self, original: &MandalaSegment) -> Vec<Path> {
-        let mut segment = original.clone();
-        segment.angle_base = self.angle_base;
-        segment.render()
-    }
+    Mandala {
+        mandala: Mandala,
+        placement_box: BBox,
+    },
 }
 
 impl MandalaSegment {
     /// creates a replica of the segment
-    pub fn replicate(&self, angle: Angle) -> ReplicaSegment {
-        ReplicaSegmentBuilder::default()
-            .replica_id(self.id)
-            .angle_base(angle)
-            .build()
-            .expect("build replica")
+    pub fn replicate(&self, angle: Angle) -> Self {
+        Self {
+            angle_base: angle,
+            ..self.clone()
+        }
     }
 
     /// converts the point from global (absolute) coordinates (x, y) to radial (local, normalized) coordinates (c, r)
@@ -111,6 +88,13 @@ impl MandalaSegment {
         (c, r_normalized)
     }
 
+    /// compute the angle of a point relative to center
+    pub fn to_angle(&self, x: Float, y: Float) -> Angle {
+        let dx = x - self.center.x;
+        let dy = y - self.center.y;
+        Angle::radians(dy.atan2(dx))
+    }
+
     /// converts the point from radial (local, normalized) coordinates (c, r) to global (absolute) (x, y)
     ///
     /// **important** not all coordinates can be recovered after conversion between global/local
@@ -126,6 +110,16 @@ impl MandalaSegment {
 
     /// renders all path in global coordinates
     pub fn render(&self) -> Vec<Path> {
+        self.render_with(|pt| {
+            let (x, y) = self.to_global(pt.x, pt.y);
+            Point::new(x, y)
+        })
+    }
+
+    pub fn render_with<F>(&self, with_fn: F) -> Vec<Path>
+    where
+        F: Fn(&Point) -> Point,
+    {
         let mut rendition = vec![];
 
         for d in self.drawing.iter() {
@@ -134,15 +128,24 @@ impl MandalaSegment {
                     for p in paths.iter() {
                         let mut path = p.clone();
                         for pt in path.key_pts() {
-                            let (x, y) = self.to_global(pt.x, pt.y);
-                            pt.x = x;
-                            pt.y = y;
+                            *pt = with_fn(&pt);
                         }
-
                         rendition.push(path)
                     }
                 }
-                SegmentDrawing::Mandala(m) => rendition.extend(m.render()),
+                SegmentDrawing::Mandala {
+                    mandala,
+                    placement_box,
+                } => {
+                    let mut m_render = mandala.render();
+                    // for path in m_render.iter_mut() {
+                    //     for pt in path.key_pts() {
+                    //         let diff = placement_box.center() - mandala.bounds.center();
+                    //         *pt = with_fn(&(*pt + diff));
+                    //     }
+                    // }
+                    rendition.extend(m_render);
+                }
             }
         }
 
@@ -243,5 +246,37 @@ mod test_segement {
             Point::new(3.8617126862418067, 4.582281071622571),
             "to point"
         );
+    }
+
+    #[test]
+    fn test_to_angle() {
+        let segment = MandalaSegmentBuilder::default()
+            .breadth(1.0)
+            .r_base(2.0)
+            .angle_base(Angle::radians(0.0))
+            .sweep(Angle::pi())
+            .center(Point::new(0.0, 0.0))
+            .build()
+            .expect("build segment");
+
+        let test_cases = vec![
+            (1.0, 1.0, Angle::radians(std::f64::consts::FRAC_PI_4)),
+            (-1.0, 1.0, Angle::radians(3.0 * std::f64::consts::FRAC_PI_4)),
+            (1.0, -1.0, Angle::radians(-std::f64::consts::FRAC_PI_4)),
+            (
+                -1.0,
+                -1.0,
+                Angle::radians(-3.0 * std::f64::consts::FRAC_PI_4),
+            ),
+            (0.0, 1.0, Angle::radians(std::f64::consts::FRAC_PI_2)),
+            (0.0, -1.0, Angle::radians(-std::f64::consts::FRAC_PI_2)),
+            (1.0, 0.0, Angle::radians(0.0)),
+            (-1.0, 0.0, Angle::radians(std::f64::consts::PI)),
+        ];
+
+        for (x, y, expected_angle) in test_cases {
+            let angle = segment.to_angle(x, y);
+            assert_eq!(angle, expected_angle, "for point ({}, {})", x, y);
+        }
     }
 }

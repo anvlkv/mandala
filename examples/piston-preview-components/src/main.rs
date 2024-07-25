@@ -90,23 +90,24 @@ impl App {
 
         self.update_t += u.dt;
 
-        // if self.update_t >= 0.5 {
-        //     self.update_t = 0.0;
-        //     self.epoch.layout = match self.epoch.layout {
-        //         EpochLayout::Circle { radius } => EpochLayout::Ellipse {
-        //             radii: Size::new(radius, radius / 2.0),
-        //         },
-        //         EpochLayout::Ellipse { radii } => EpochLayout::Polygon {
-        //             n_sides: 7,
-        //             radius: radii.width,
-        //         },
-        //         EpochLayout::Polygon { radius, .. } => EpochLayout::Rectangle {
-        //             rect: Size::new(radius, radius * 2.0),
-        //         },
-        //         EpochLayout::Rectangle { rect } => EpochLayout::Circle { radius: rect.width },
-        //     };
-        //     self.epoch_drawing = self.epoch.render();
-        // }
+        if self.update_t >= 0.5 {
+            self.update_t = 0.0;
+            self.epoch.layout = match self.epoch.layout {
+                EpochLayout::Circle { radius } => EpochLayout::Ellipse {
+                    radii: Size::new(radius, radius / 2.0),
+                },
+                EpochLayout::Ellipse { radii } => EpochLayout::Polygon {
+                    n_sides: 7,
+                    radius: radii.width,
+                    start: Angle::zero(),
+                },
+                EpochLayout::Polygon { radius, .. } => EpochLayout::Rectangle {
+                    rect: Size::new(radius, radius * 2.0),
+                },
+                EpochLayout::Rectangle { rect } => EpochLayout::Circle { radius: rect.width },
+            };
+            self.epoch_drawing = self.epoch.render();
+        }
     }
 }
 
@@ -280,10 +281,59 @@ fn main() {
         .unwrap();
 
     let radius = 100.0;
+    let breadth = 50.0;
 
+    let ep_center = center.add_size(&Size::new(0.0, 300.0));
     let mut epoch = EpochBuilder::default()
-        .center(center.add_size(&Size::new(300.0, 0.0)))
-        .layout(EpochLayout::Circle { radius })
+        .center(ep_center)
+        .layout(EpochLayout::Circle {
+            radius: radius - breadth,
+        })
+        .outline(true)
+        .build()
+        .unwrap();
+
+    let renderer =
+        |_rng: &mut SmallRng, size: Size| Path::rect(size, Rect::from_size(size).center());
+
+    let mut gen = GeneratorBuilder::default()
+        .renderer(renderer)
+        .mode(GeneratorMode::Block)
+        .build()
+        .unwrap();
+
+    let pattern = gen.generate(Rect::from_size(Size::new(100.0, 100.0)));
+
+    drawing.extend(
+        pattern
+            .clone()
+            .into_iter()
+            .map(|p| p.translate(Vector::new(120.0 * 5.0, 0.0))),
+    );
+
+    let mut draw_fn = |args: &DrawArgs| {
+        MandalaSegmentBuilder::default()
+            .angle_base(args.start_angle)
+            .sweep(Angle::frac_pi_4())
+            .center(args.center)
+            .r_base(radius)
+            .breadth(50.0)
+            .drawing(vec![SegmentDrawing::Path(pattern.clone())])
+            .build()
+            .unwrap()
+    };
+
+    epoch.draw_fill(&mut draw_fn);
+
+    drawing.extend(epoch.render());
+
+    let ep_center = center.add_size(&Size::new(300.0, 0.0));
+    let mut epoch = EpochBuilder::default()
+        .center(ep_center)
+        .layout(EpochLayout::Circle {
+            radius: radius - breadth,
+        })
+        .outline(true)
         .build()
         .unwrap();
 
@@ -295,14 +345,19 @@ fn main() {
             x_rotation: Angle::zero(),
             flags: ArcFlags::default(),
         }))
+        // Path::new(PathSegment::Line(Line {
+        //     from: Point::new(0.0, 0.0),
+        //     to: Point::new(10.0, 3.0),
+        // }))
     };
 
     let mut gen = GeneratorBuilder::default()
         .renderer(renderer)
-        .transform(Transform::Rotate(FillValue::Incremental {
-            init: Angle::radians(0.001),
-            increment: Angle::radians(0.01),
-        }))
+        .transform(Transform::Rotate(FillValue::Rand(vec![
+            Angle::zero(),
+            Angle::frac_pi_4(),
+            Angle::frac_pi_2(),
+        ])))
         .mode(GeneratorMode::GridStep {
             row_height: 8.0,
             column_width: 10.0,
@@ -311,6 +366,13 @@ fn main() {
         .unwrap();
 
     let pattern = gen.generate(Rect::from_size(Size::new(100.0, 100.0)));
+
+    drawing.extend(
+        pattern
+            .clone()
+            .into_iter()
+            .map(|p| p.translate(Vector::new(120.0 * 4.0, 0.0))),
+    );
 
     let mut draw_fn = |args: &DrawArgs| {
         MandalaSegmentBuilder::default()

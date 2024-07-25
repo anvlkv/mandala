@@ -1,12 +1,11 @@
 use std::ops::{Range, RangeBounds};
 
 use derive_builder::Builder;
+use euclid::Transform2D;
 use uuid::Uuid;
 
 use crate::{
-    generator, polygon,
-    segment::{self, MandalaSegment, ReplicaSegment},
-    Angle, Arc, Float, Line, Path, PathSegment, Point, Rect, Size, Vector,
+    segment::MandalaSegment, Angle, Arc, Float, Line, Path, PathSegment, Point, Rect, Size, Vector,
 };
 
 /// Mandala Epoch
@@ -24,57 +23,10 @@ pub struct Epoch {
     pub layout: EpochLayout,
     /// content of the epoch
     #[builder(default)]
-    pub segments: Vec<EpochSegment>,
+    pub segments: Vec<MandalaSegment>,
     /// whether the epoch should render its outline
     #[builder(default)]
     pub outline: bool,
-}
-
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone)]
-pub enum EpochSegment {
-    /// Original segment
-    Segment(MandalaSegment),
-    /// Replica
-    Replica(ReplicaSegment),
-}
-
-impl EpochSegment {
-    fn as_original<'a>(&'a self, ep: &'a Epoch) -> &'a MandalaSegment {
-        match self {
-            EpochSegment::Segment(s) => Some(s),
-            EpochSegment::Replica(r) => ep.segments.iter().find_map(|s| match s {
-                EpochSegment::Segment(o) => {
-                    if o.id == r.replica_id {
-                        Some(o)
-                    } else {
-                        None
-                    }
-                }
-                EpochSegment::Replica(_) => None,
-            }),
-        }
-        .expect("replica segments may only replicate segments from the same epoch")
-    }
-
-    /// angle base of the original or replicated epoch
-    pub fn angle_base(&self) -> Angle {
-        match self {
-            EpochSegment::Segment(s) => s.angle_base,
-            EpochSegment::Replica(r) => r.angle_base,
-        }
-    }
-
-    /// render the segment
-    pub fn render(&self, ep: &Epoch) -> Vec<Path> {
-        match self {
-            EpochSegment::Segment(s) => s.render(),
-            EpochSegment::Replica(r) => {
-                let original = self.as_original(ep);
-                r.render(original)
-            }
-        }
-    }
 }
 
 /// Epoch layout variants
@@ -92,7 +44,11 @@ pub enum EpochLayout {
     /// ploygonal layout
     ///
     /// places each segment along the edges of the polygon, around the shape
-    Polygon { n_sides: u8, radius: Float },
+    Polygon {
+        n_sides: usize,
+        radius: Float,
+        start: Angle,
+    },
     /// rectangular layout
     ///
     /// places each segment along the edges of the rectangle, around the shape
@@ -100,59 +56,31 @@ pub enum EpochLayout {
 }
 
 impl EpochLayout {
-    /// render the segment and translate its according to layout
-    pub fn render_segment(&self, segment: &EpochSegment, ep: &Epoch) -> Vec<Path> {
-        let rendition = segment.render(ep);
-        let original = segment.as_original(ep);
+    pub fn outline(&self, center: Point) -> Path {
+        match self {
+            EpochLayout::Circle { radius } => Path::circle(center, *radius),
+            EpochLayout::Ellipse { radii } => Path::new(PathSegment::SweepArc(Arc {
+                center,
+                start_angle: Angle::zero(),
+                sweep_angle: Angle::two_pi(),
+                x_rotation: Angle::zero(),
+                radii: Vector::new(radii.width, radii.height),
+            })),
+            EpochLayout::Rectangle { rect } => Path::rect(*rect, center),
+            EpochLayout::Polygon {
+                n_sides,
+                radius,
+                start,
+            } => {
+                let origin = Point::new(center.x - radius, center.y - radius);
 
-        let translate_by: Vector = match self {
-            EpochLayout::Circle { radius } => Vector::splat(original.r_base - *radius),
-            EpochLayout::Ellipse { radii } => {
-                // given the same base_angle find the translation distance
-                // between the edge of the ellipse
-                // and edge of the plain circle of the segment
-                let angle = segment.angle_base() + original.sweep / 2.0;
-                let cos_angle = angle.radians.cos();
-                let sin_angle = angle.radians.sin();
-                Vector::new(
-                    (original.r_base - radii.width) * cos_angle,
-                    (original.r_base - radii.height) * sin_angle,
-                )
-            }
-            EpochLayout::Polygon { n_sides, radius } => {
-                let mut poly = polygon(
+                Path::polygon(
                     *n_sides,
-                    Rect::new(
-                        Point::new(ep.center.x - *radius, ep.center.y - *radius),
-                        Size::splat(*radius * 2.0),
-                    ),
-                );
-                let polygon_points = poly.key_pts();
-                let point_on_polygon = *polygon_points[segment
-                    .angle_base()
-                    .radians
-                    .rem_euclid(2.0 * std::f64::consts::PI as f64)
-                    as usize];
-                Vector::new(
-                    original.r_base - point_on_polygon.x,
-                    original.r_base - point_on_polygon.y,
+                    Rect::new(origin, Size::splat(radius * 2.0)),
+                    *start,
                 )
             }
-            EpochLayout::Rectangle { rect } => {
-                let angle = segment.angle_base() + original.sweep / 2.0;
-                let cos_angle = angle.radians.cos();
-                let sin_angle = angle.radians.sin();
-                Vector::new(
-                    (original.r_base - rect.width / 2.0) * cos_angle,
-                    (original.r_base - rect.height / 2.0) * sin_angle,
-                )
-            }
-        };
-
-        rendition
-            .into_iter()
-            .map(|p| p.translate(translate_by))
-            .collect()
+        }
     }
 }
 
@@ -178,17 +106,12 @@ impl Epoch {
     {
         let n = self.segments.len() + 1;
         let start_angle = self.segments.iter().fold(Angle::zero(), |angle, segment| {
-            let s = segment.as_original(&self);
-            angle + segment.angle_base() + s.sweep
+            angle + segment.angle_base + segment.sweep
         });
         let max_sweep = self
             .segments
             .iter()
-            .fold(Angle::two_pi(), |angle, segment| {
-                let s = segment.as_original(&self);
-
-                angle - s.sweep
-            });
+            .fold(Angle::two_pi(), |angle, segment| angle - segment.sweep);
 
         let args = DrawArgs {
             n,
@@ -199,7 +122,7 @@ impl Epoch {
 
         let segment = draw_fn(&args);
 
-        self.segments.push(EpochSegment::Segment(segment));
+        self.segments.push(segment);
     }
 
     /// draw one segment and fill available space with replicas
@@ -208,24 +131,17 @@ impl Epoch {
         D: FnMut(&DrawArgs) -> MandalaSegment,
     {
         self.draw_segment(draw_fn);
-        let last = self.segments.last().unwrap().clone();
-        let mut angle_base = last.angle_base();
-        let original = last.as_original(&self).clone();
-        let sweep = original.sweep;
+        let segment = self.segments.last().unwrap().clone();
+        let mut angle_base = segment.angle_base;
+        let sweep = segment.sweep;
         let max_sweep = self
             .segments
             .iter()
-            .fold(Angle::two_pi(), |angle, segment| {
-                let s = segment.as_original(&self);
-
-                angle - s.sweep
-            });
+            .fold(Angle::two_pi(), |angle, segment| angle - segment.sweep);
         let steps = (max_sweep.radians / sweep.radians).floor() as usize;
 
         for _ in 0..steps {
-            self.segments.push(EpochSegment::Replica(
-                original.replicate(angle_base + sweep),
-            ));
+            self.segments.push(segment.replicate(angle_base + sweep));
             angle_base += sweep;
         }
     }
@@ -274,18 +190,13 @@ impl Epoch {
         let len = range.len();
 
         let start_angle = self.segments.iter().fold(Angle::zero(), |angle, segment| {
-            let s = segment.as_original(&self);
-            angle + segment.angle_base() + s.sweep
+            angle + segment.angle_base + segment.sweep
         });
 
         let max_sweep = self
             .segments
             .iter()
-            .fold(Angle::two_pi(), |angle, segment| {
-                let s = segment.as_original(&self);
-
-                angle - s.sweep
-            })
+            .fold(Angle::two_pi(), |angle, segment| angle - segment.sweep)
             / len as f64;
 
         let n = self.segments.len() + 1;
@@ -303,7 +214,7 @@ impl Epoch {
             args.start_angle += segment.sweep;
             args.max_sweep -= segment.sweep;
 
-            self.segments.push(EpochSegment::Segment(segment));
+            self.segments.push(segment);
         }
     }
 
@@ -311,83 +222,61 @@ impl Epoch {
     pub fn render(&self) -> Vec<Path> {
         self.segments
             .iter()
-            .flat_map(|s| self.layout.render_segment(s, &self))
-            .chain(self.outline())
+            .flat_map(|s| self.layout_segment(s))
+            .chain(if self.outline {
+                Some(self.layout.outline(self.center))
+            } else {
+                None
+            })
             .collect()
     }
 
-    fn outline(&self) -> Option<Path> {
-        if self.outline {
-            Some(match self.layout {
-                EpochLayout::Circle { radius } => Path::new(PathSegment::Arc(
-                    Arc::circle(self.center, radius).to_svg_arc(),
-                )),
-                EpochLayout::Ellipse { radii } => Path::new(PathSegment::Arc(
-                    Arc {
-                        center: self.center,
-                        start_angle: Angle::zero(),
-                        sweep_angle: Angle::two_pi(),
-                        x_rotation: Angle::zero(),
-                        radii: Vector::new(radii.width, radii.height),
-                    }
-                    .to_svg_arc(),
-                )),
-                EpochLayout::Rectangle { rect } => {
-                    let mut path = Path::new(PathSegment::Line(Line {
-                        from: Point::new(
-                            self.center.x - rect.width / 2.0,
-                            self.center.y - rect.height / 2.0,
-                        ),
-                        to: Point::new(
-                            self.center.x + rect.width / 2.0,
-                            self.center.y - rect.height / 2.0,
-                        ),
-                    }));
-                    path.draw_next(|last| {
-                        PathSegment::Line(Line {
-                            from: last.to(),
-                            to: Point::new(
-                                self.center.x + rect.width / 2.0,
-                                self.center.y + rect.height / 2.0,
-                            ),
-                        })
-                    });
-                    path.draw_next(|last| {
-                        PathSegment::Line(Line {
-                            from: last.to(),
-                            to: Point::new(
-                                self.center.x - rect.width / 2.0,
-                                self.center.y + rect.height / 2.0,
-                            ),
-                        })
-                    });
-                    path.draw_next(|last| {
-                        PathSegment::Line(Line {
-                            from: last.to(),
-                            to: Point::new(
-                                self.center.x - rect.width / 2.0,
-                                self.center.y - rect.height / 2.0,
-                            ),
-                        })
-                    });
+    fn layout_segment(&self, segment: &MandalaSegment) -> Vec<Path> {
+        let outline = self.layout.outline(self.center);
 
-                    path
-                }
-                EpochLayout::Polygon { n_sides, radius } => {
-                    let origin = Point::new(self.center.x - radius, self.center.y - radius);
+        let segment_outline = Path::new(PathSegment::SweepArc(Arc {
+            center: segment.center,
+            radii: Vector::splat(segment.r_base - segment.breadth),
+            x_rotation: Angle::zero(),
+            // increased testing area
+            start_angle: segment.angle_base - Angle::frac_pi_4(),
+            sweep_angle: segment.sweep + Angle::pi(),
+        }));
 
-                    polygon(n_sides, Rect::new(origin, Size::splat(radius * 2.0)))
+        let outline_box = outline.bounds();
+        let test_len =
+            outline_box.width().max(outline_box.height()) + segment.center.distance_to(self.center);
+
+        segment.render_with(|pt: &Point| {
+            let mut g_pt = Point::from(segment.to_global(pt.x, pt.y));
+
+            let test_line = {
+                let mut l = Line {
+                    from: segment.center,
+                    to: g_pt,
+                };
+
+                l.set_length(l.length() + test_len);
+
+                l
+            };
+
+            if let Some(cross_outline) = outline.line_intersection(&test_line) {
+                if let Some(cross_segment) = segment_outline.line_intersection(&test_line) {
+                    let d_x = cross_outline.x - cross_segment.x;
+                    let d_y = cross_outline.y - cross_segment.y;
+
+                    g_pt = Transform2D::translation(d_x, d_y).transform_point(g_pt)
                 }
-            })
-        } else {
-            None
-        }
+            }
+            g_pt
+        })
     }
 }
 
 #[cfg(test)]
 mod epoch_tests {
-    use crate::{MandalaSegmentBuilder, SegmentDrawing};
+    use crate::{Line, MandalaSegmentBuilder, SegmentDrawing};
 
     use super::*;
 
@@ -469,22 +358,20 @@ mod epoch_tests {
             .center(Point::new(0.0, 0.0))
             .layout(EpochLayout::Circle { radius: 10.0 })
             .outline(true)
-            .segments(vec![EpochSegment::Segment(
-                MandalaSegmentBuilder::default()
-                    .breadth(1.0)
-                    .r_base(2.0)
-                    .angle_base(Angle::zero())
-                    .sweep(Angle::two_pi())
-                    .center(Point::new(0.0, 0.0))
-                    .drawing(vec![SegmentDrawing::Path(vec![Path::new(
-                        PathSegment::Line(Line {
-                            from: Point::new(0.0, 0.0),
-                            to: Point::new(1.0, 1.0),
-                        }),
-                    )])])
-                    .build()
-                    .unwrap(),
-            )])
+            .segments(vec![MandalaSegmentBuilder::default()
+                .breadth(1.0)
+                .r_base(2.0)
+                .angle_base(Angle::zero())
+                .sweep(Angle::two_pi())
+                .center(Point::new(0.0, 0.0))
+                .drawing(vec![SegmentDrawing::Path(vec![Path::new(
+                    PathSegment::Line(Line {
+                        from: Point::new(0.0, 0.0),
+                        to: Point::new(1.0, 1.0),
+                    }),
+                )])])
+                .build()
+                .unwrap()])
             .build()
             .unwrap();
 
@@ -498,22 +385,20 @@ mod epoch_tests {
             .center(Point::new(0.0, 0.0))
             .layout(EpochLayout::Circle { radius: 10.0 })
             .outline(true)
-            .segments(vec![EpochSegment::Segment(
-                MandalaSegmentBuilder::default()
-                    .breadth(1.0)
-                    .r_base(2.0)
-                    .angle_base(Angle::zero())
-                    .sweep(Angle::two_pi())
-                    .center(Point::new(0.0, 0.0))
-                    .drawing(vec![SegmentDrawing::Path(vec![Path::new(
-                        PathSegment::Line(Line {
-                            from: Point::new(0.0, 0.0),
-                            to: Point::new(1.0, 1.0),
-                        }),
-                    )])])
-                    .build()
-                    .unwrap(),
-            )])
+            .segments(vec![MandalaSegmentBuilder::default()
+                .breadth(1.0)
+                .r_base(2.0)
+                .angle_base(Angle::zero())
+                .sweep(Angle::two_pi())
+                .center(Point::new(0.0, 0.0))
+                .drawing(vec![SegmentDrawing::Path(vec![Path::new(
+                    PathSegment::Line(Line {
+                        from: Point::new(0.0, 0.0),
+                        to: Point::new(1.0, 1.0),
+                    }),
+                )])])
+                .build()
+                .unwrap()])
             .build()
             .unwrap();
 
@@ -529,22 +414,20 @@ mod epoch_tests {
                 radii: Size::new(10.0, 5.0),
             })
             .outline(true)
-            .segments(vec![EpochSegment::Segment(
-                MandalaSegmentBuilder::default()
-                    .breadth(1.0)
-                    .r_base(2.0)
-                    .angle_base(Angle::zero())
-                    .sweep(Angle::two_pi())
-                    .center(Point::new(0.0, 0.0))
-                    .drawing(vec![SegmentDrawing::Path(vec![Path::new(
-                        PathSegment::Line(Line {
-                            from: Point::new(0.0, 0.0),
-                            to: Point::new(1.0, 1.0),
-                        }),
-                    )])])
-                    .build()
-                    .unwrap(),
-            )])
+            .segments(vec![MandalaSegmentBuilder::default()
+                .breadth(1.0)
+                .r_base(2.0)
+                .angle_base(Angle::zero())
+                .sweep(Angle::two_pi())
+                .center(Point::new(0.0, 0.0))
+                .drawing(vec![SegmentDrawing::Path(vec![Path::new(
+                    PathSegment::Line(Line {
+                        from: Point::new(0.0, 0.0),
+                        to: Point::new(1.0, 1.0),
+                    }),
+                )])])
+                .build()
+                .unwrap()])
             .build()
             .unwrap();
 
@@ -559,24 +442,23 @@ mod epoch_tests {
             .layout(EpochLayout::Polygon {
                 n_sides: 5,
                 radius: 10.0,
+                start: Angle::zero(),
             })
             .outline(true)
-            .segments(vec![EpochSegment::Segment(
-                MandalaSegmentBuilder::default()
-                    .breadth(1.0)
-                    .r_base(2.0)
-                    .angle_base(Angle::zero())
-                    .sweep(Angle::two_pi())
-                    .center(Point::new(0.0, 0.0))
-                    .drawing(vec![SegmentDrawing::Path(vec![Path::new(
-                        PathSegment::Line(Line {
-                            from: Point::new(0.0, 0.0),
-                            to: Point::new(1.0, 1.0),
-                        }),
-                    )])])
-                    .build()
-                    .unwrap(),
-            )])
+            .segments(vec![MandalaSegmentBuilder::default()
+                .breadth(1.0)
+                .r_base(2.0)
+                .angle_base(Angle::zero())
+                .sweep(Angle::two_pi())
+                .center(Point::new(0.0, 0.0))
+                .drawing(vec![SegmentDrawing::Path(vec![Path::new(
+                    PathSegment::Line(Line {
+                        from: Point::new(0.0, 0.0),
+                        to: Point::new(1.0, 1.0),
+                    }),
+                )])])
+                .build()
+                .unwrap()])
             .build()
             .unwrap();
 
@@ -592,22 +474,20 @@ mod epoch_tests {
                 rect: Size::new(10.0, 5.0),
             })
             .outline(true)
-            .segments(vec![EpochSegment::Segment(
-                MandalaSegmentBuilder::default()
-                    .breadth(1.0)
-                    .r_base(2.0)
-                    .angle_base(Angle::zero())
-                    .sweep(Angle::two_pi())
-                    .center(Point::new(0.0, 0.0))
-                    .drawing(vec![SegmentDrawing::Path(vec![Path::new(
-                        PathSegment::Line(Line {
-                            from: Point::new(0.0, 0.0),
-                            to: Point::new(1.0, 1.0),
-                        }),
-                    )])])
-                    .build()
-                    .unwrap(),
-            )])
+            .segments(vec![MandalaSegmentBuilder::default()
+                .breadth(1.0)
+                .r_base(2.0)
+                .angle_base(Angle::zero())
+                .sweep(Angle::two_pi())
+                .center(Point::new(0.0, 0.0))
+                .drawing(vec![SegmentDrawing::Path(vec![Path::new(
+                    PathSegment::Line(Line {
+                        from: Point::new(0.0, 0.0),
+                        to: Point::new(1.0, 1.0),
+                    }),
+                )])])
+                .build()
+                .unwrap()])
             .build()
             .unwrap();
 

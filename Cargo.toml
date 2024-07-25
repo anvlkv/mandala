@@ -34,4 +34,11 @@ serde = [
 ]
 
 [workspace]
-members = ["./examples/piston-test-bed", "examples/components", "examples/leptos-wasm-test-bed"]
+members = [
+    "examples/piston-test-bed",
+    "examples/piston-preview-components",
+    "examples/leptos-wasm-test-bed",
+]
+
+[dev-dependencies]
+insta = "1.39.0"
