@@ -64,6 +64,44 @@ impl PathSegment {
         }
     }
 
+    /// flip the segment along the horizontal axis, where the axis is positioned at a given `y` coordinate
+    pub fn flip_along_x(&self, y_pos_axis: Float) -> Self {
+        match self {
+            PathSegment::Point(p) => {
+                PathSegment::Point(Point::new(p.x, y_pos_axis - (p.y - y_pos_axis)))
+            }
+            PathSegment::Line(s) => PathSegment::Line(Line {
+                to: Point::new(s.from.x, y_pos_axis - (s.from.y - y_pos_axis)),
+                from: Point::new(s.to.x, y_pos_axis - (s.to.y - y_pos_axis)),
+            }),
+            PathSegment::Arc(s) => PathSegment::Arc(SvgArc {
+                to: Point::new(s.from.x, y_pos_axis - (s.from.y - y_pos_axis)),
+                from: Point::new(s.to.x, y_pos_axis - (s.to.y - y_pos_axis)),
+                radii: s.radii,
+                x_rotation: s.x_rotation,
+                flags: s.flags,
+            }),
+            PathSegment::SweepArc(s) => PathSegment::SweepArc(Arc {
+                center: Point::new(s.center.x, y_pos_axis - (s.center.y - y_pos_axis)),
+                radii: s.radii,
+                start_angle: s.start_angle,
+                sweep_angle: s.sweep_angle,
+                x_rotation: s.x_rotation,
+            }),
+            PathSegment::QuadraticCurve(s) => PathSegment::QuadraticCurve(QuadraticCurve {
+                to: Point::new(s.from.x, y_pos_axis - (s.from.y - y_pos_axis)),
+                ctrl: Point::new(s.ctrl.x, y_pos_axis - (s.ctrl.y - y_pos_axis)),
+                from: Point::new(s.to.x, y_pos_axis - (s.to.y - y_pos_axis)),
+            }),
+            PathSegment::CubicCurve(s) => PathSegment::CubicCurve(CubicCurve {
+                to: Point::new(s.from.x, y_pos_axis - (s.from.y - y_pos_axis)),
+                ctrl1: Point::new(s.ctrl1.x, y_pos_axis - (s.ctrl1.y - y_pos_axis)),
+                ctrl2: Point::new(s.ctrl2.x, y_pos_axis - (s.ctrl2.y - y_pos_axis)),
+                from: Point::new(s.to.x, y_pos_axis - (s.to.y - y_pos_axis)),
+            }),
+        }
+    }
+
     /// length of the segment
     pub fn length(&self) -> Float {
         self.flattened()

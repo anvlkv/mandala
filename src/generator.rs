@@ -2,6 +2,7 @@ use std::ops::{Add, AddAssign};
 
 use derive_builder::Builder;
 
+use euclid::SideOffsets2D;
 use rand::prelude::*;
 
 use crate::{Angle, Float, Path, Point, Rect, Size, Vector};
@@ -104,12 +105,22 @@ pub enum GeneratorMode {
     XStep(Float),
     /// repeat every N units along Y axis
     YStep(Float),
-    /// repeat every N units along XY axis (diagonal)
+    /// repeat every N units along XY axes (diagonal)
     XYStep { x: Float, y: Float },
     /// fill the grid
     GridStep {
         row_height: Float,
         column_width: Float,
+    },
+    /// symmetrical along X axis
+    XSymmetry {
+        mode: Box<GeneratorMode>,
+        axis: Float,
+    },
+    /// symmetrical along Y axis
+    YSymmetry {
+        mode: Box<GeneratorMode>,
+        axis: Float,
     },
 }
 
@@ -189,6 +200,28 @@ impl GeneratorMode {
                     }
                 }))
             }
+            GeneratorMode::XSymmetry { mode, axis } => {
+                let bounds = bounds.inner_rect(SideOffsets2D::new(0.0, 0.0, *axis, 0.0));
+                mode.bounds_iter(bounds)
+            }
+            GeneratorMode::YSymmetry { mode, axis } => {
+                let bounds = bounds.inner_rect(SideOffsets2D::new(0.0, *axis, 0.0, 0.0));
+                mode.bounds_iter(bounds)
+            }
+        }
+    }
+
+    fn handle_post_gen(&self, generated: Vec<Path>) -> Vec<Path> {
+        match self {
+            GeneratorMode::XSymmetry { axis, mode } => {
+                let inner = mode.handle_post_gen(generated);
+                inner.into_iter().map(|p| p.reflect_x(*axis)).collect()
+            }
+            GeneratorMode::YSymmetry { axis, mode } => {
+                let inner = mode.handle_post_gen(generated);
+                inner.into_iter().map(|p| p.reflect_y(*axis)).collect()
+            }
+            _ => generated,
         }
     }
 }
@@ -227,12 +260,12 @@ where
             result.push(path.translate(Vector::new(rect.origin.x, rect.origin.y)));
         }
 
-        result
+        self.mode.handle_post_gen(result)
     }
 }
 
 #[cfg(test)]
-mod generator_test {
+mod generator_tests {
     use lyon_geom::LineSegment;
 
     use crate::{PathSegment, Size};
@@ -417,5 +450,53 @@ mod generator_test {
         let paths = generator.generate(bounds);
 
         assert_eq!(paths.len(), 10);
+    }
+
+    #[test]
+    fn test_generator_mode_x_symmetry() {
+        let inner_mode = GeneratorMode::XStep(10.0);
+        let mode = GeneratorMode::XSymmetry {
+            mode: Box::new(inner_mode),
+            axis: 15.0,
+        };
+        let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(30.0, 30.0));
+        let mut iter = mode.bounds_iter(bounds);
+        assert_eq!(
+            iter.next().unwrap(),
+            Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 15.0))
+        );
+        assert_eq!(
+            iter.next().unwrap(),
+            Rect::new(Point::new(10.0, 0.0), Size::new(10.0, 15.0))
+        );
+        assert_eq!(
+            iter.next().unwrap(),
+            Rect::new(Point::new(20.0, 0.0), Size::new(10.0, 15.0))
+        );
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    fn test_generator_mode_y_symmetry() {
+        let inner_mode = GeneratorMode::YStep(10.0);
+        let mode = GeneratorMode::YSymmetry {
+            mode: Box::new(inner_mode),
+            axis: 15.0,
+        };
+        let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(30.0, 30.0));
+        let mut iter = mode.bounds_iter(bounds);
+        assert_eq!(
+            iter.next().unwrap(),
+            Rect::new(Point::new(0.0, 0.0), Size::new(15.0, 10.0))
+        );
+        assert_eq!(
+            iter.next().unwrap(),
+            Rect::new(Point::new(0.0, 10.0), Size::new(15.0, 10.0))
+        );
+        assert_eq!(
+            iter.next().unwrap(),
+            Rect::new(Point::new(0.0, 20.0), Size::new(15.0, 10.0))
+        );
+        assert!(iter.next().is_none());
     }
 }

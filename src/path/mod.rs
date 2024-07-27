@@ -166,6 +166,17 @@ impl Path {
         Self(LinkedList::from_iter(self.0.iter().map(|s| s.scale(scale))))
     }
 
+    pub fn reflect_x(&self, x_pos: Float) -> Self {
+        Self(LinkedList::from_iter(
+            self.0.iter().map(|s| s.flip_along_x(x_pos)),
+        ))
+    }
+    pub fn reflect_y(&self, y_pos: Float) -> Self {
+        Self(LinkedList::from_iter(
+            self.0.iter().map(|s| s.flip_along_y(y_pos)),
+        ))
+    }
+
     /// Key points of all path segments
     pub fn key_pts(&mut self) -> Vec<&mut Point> {
         self.0.iter_mut().flat_map(|s| s.key_pts()).collect()
