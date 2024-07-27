@@ -193,10 +193,7 @@ impl Path {
         let forced_svg_arc = self.is_closed()
             && it
                 .peek()
-                .map(|s| match s {
-                    PathSegment::Arc(_) | PathSegment::SweepArc(_) => true,
-                    _ => false,
-                })
+                .map(|s| matches!(s, PathSegment::Arc(_) | PathSegment::SweepArc(_)))
                 .unwrap_or(false);
 
         let svg_arc_path = |s: &SvgArc, d: &mut String| {
@@ -223,7 +220,7 @@ impl Path {
             });
         };
 
-        while let Some(s) = it.next() {
+        for s in it {
             match s {
                 PathSegment::Line(s) => {
                     d.push_str(&format!(" L {},{}", s.to.x, s.to.y));
@@ -253,7 +250,7 @@ impl Path {
                 }
                 PathSegment::SweepArc(a) => {
                     if forced_svg_arc {
-                        svg_arc_curve(&a, &mut d);
+                        svg_arc_curve(a, &mut d);
                     } else {
                         let s = a.to_svg_arc();
                         svg_arc_path(&s, &mut d);
@@ -322,7 +319,6 @@ impl IntoIterator for Path {
 mod tests {
     use crate::{Angle, CubicCurve, Line, Point, QuadraticCurve, Rect, Size, SvgArc, Vector};
     use lyon_geom::ArcFlags;
-    use rand::{thread_rng, Rng};
 
     use super::*;
 

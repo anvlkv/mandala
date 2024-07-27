@@ -200,13 +200,13 @@ where
 {
     /// runs generation
     pub fn generate(&mut self, gen_bounds: Rect) -> Vec<Path> {
-        let mut it = self.mode.bounds_iter(gen_bounds).enumerate();
+        let it = self.mode.bounds_iter(gen_bounds).enumerate();
         let mut result = vec![];
         let render_fn = self.renderer;
 
         let rng = &mut self.rng;
 
-        while let Some((i, rect)) = it.next() {
+        for (i, rect) in it {
             let mut path = render_fn(rng, rect.size);
             for transofrm in self.transformations.iter() {
                 match transofrm {

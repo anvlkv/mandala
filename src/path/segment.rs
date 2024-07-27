@@ -260,7 +260,7 @@ impl PathSegment {
             PathSegment::Line(ln) => ln.intersection(line).map(|pt| vec![pt]),
             PathSegment::QuadraticCurve(q) => {
                 let i = q.line_segment_intersections(line);
-                if i.len() > 0 {
+                if !i.is_empty() {
                     Some(Vec::from_iter(i))
                 } else {
                     None
@@ -268,7 +268,7 @@ impl PathSegment {
             }
             PathSegment::CubicCurve(c) => {
                 let i = c.line_segment_intersections(line);
-                if i.len() > 0 {
+                if !i.is_empty() {
                     Some(Vec::from_iter(i))
                 } else {
                     None
@@ -280,7 +280,7 @@ impl PathSegment {
                     let ii = b.line_segment_intersections(line);
                     i.extend(ii)
                 });
-                if i.len() > 0 {
+                if !i.is_empty() {
                     Some(i)
                 } else {
                     None
@@ -292,7 +292,7 @@ impl PathSegment {
                     let ii = b.line_segment_intersections(line);
                     i.extend(ii)
                 });
-                if i.len() > 0 {
+                if !i.is_empty() {
                     Some(i)
                 } else {
                     None
@@ -437,6 +437,7 @@ mod segment_tests {
             from: Point::new(0.0, 0.0),
             to: Point::new(1.0, 1.0),
         });
+
         assert_eq!(line.length(), 1.4142135623730951);
     }
 
@@ -500,6 +501,7 @@ mod segment_tests {
         assert!(intersections.is_some());
         let intersections = intersections.unwrap();
         assert_eq!(intersections.len(), 1);
+
         assert_eq!(
             intersections[0],
             Point::new(1.414213562373095, 1.414213562373095)

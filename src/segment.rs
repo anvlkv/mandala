@@ -99,7 +99,7 @@ impl MandalaSegmentBuilder {
             return Err("`r_base` must be > 0.0".to_string());
         }
 
-        if breadth > 1.0 || breadth < 0.0 {
+        if !(0.0..=1.0).contains(&breadth) {
             return Err("`breadth` must be between 0.0 and 1.0".to_string());
         }
 
@@ -179,7 +179,7 @@ impl MandalaSegment {
                     for p in paths.iter() {
                         let mut path = p.clone();
                         for pt in path.key_pts() {
-                            *pt = with_fn(&pt);
+                            *pt = with_fn(pt);
                         }
                         rendition.push(path)
                     }
