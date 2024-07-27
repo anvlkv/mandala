@@ -1,9 +1,9 @@
+mod artboard;
 mod epoch;
 mod generator;
 mod mandala;
 mod path;
 mod segment;
-mod space;
 
 #[cfg(feature = "f64")]
 pub type Float = f64;
@@ -11,12 +11,12 @@ pub type Float = f64;
 #[cfg(feature = "f32")]
 pub type Float = f32;
 
+pub use artboard::*;
 pub use epoch::*;
 pub use generator::*;
 pub use mandala::*;
 pub use path::*;
 pub use segment::*;
-pub use space::*;
 
 mod points {
     use crate::Float;
