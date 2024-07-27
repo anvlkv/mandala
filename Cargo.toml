@@ -31,7 +31,6 @@ serde = [
     "dep:serde",
 ]
 
-[workspace]
 
 [dev-dependencies]
 insta = "1.39.0"

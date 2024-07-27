@@ -27,8 +27,8 @@ impl Mandala {
     }
 
     /// renders all epochs, all segments, all paths
-    pub fn render(&self) -> Vec<Path> {
-        self.epochs.iter().flat_map(|e| e.render()).collect()
+    pub fn render_paths(&self) -> Vec<Path> {
+        self.epochs.iter().flat_map(|e| e.render_paths()).collect()
     }
 }
 

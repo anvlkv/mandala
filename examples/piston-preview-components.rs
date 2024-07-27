@@ -83,13 +83,13 @@ impl App {
 
     fn update(&mut self, u: &UpdateArgs) {
         self.segment_lines.angle_base += Angle::radians(u.dt);
-        self.segment_drawing_lines = self.segment_lines.render();
+        self.segment_drawing_lines = self.segment_lines.render_paths();
         self.segment_arcs.angle_base += Angle::radians(u.dt);
-        self.segment_drawing_arcs = self.segment_arcs.render();
+        self.segment_drawing_arcs = self.segment_arcs.render_paths();
         self.segment_cubics.angle_base += Angle::radians(u.dt);
-        self.segment_drawing_cubics = self.segment_cubics.render();
+        self.segment_drawing_cubics = self.segment_cubics.render_paths();
         self.segment_quads.angle_base += Angle::radians(u.dt);
-        self.segment_drawing_qads = self.segment_quads.render();
+        self.segment_drawing_qads = self.segment_quads.render_paths();
 
         self.update_t += u.dt;
 
@@ -109,7 +109,7 @@ impl App {
                 },
                 EpochLayout::Rectangle { rect } => EpochLayout::Circle { radius: rect.width },
             };
-            self.epoch_drawing = self.epoch.render();
+            self.epoch_drawing = self.epoch.render_paths();
         }
     }
 }
@@ -327,7 +327,7 @@ fn main() {
 
     simple_ep.draw_fill(&mut draw_fn);
 
-    drawing.extend(simple_ep.render());
+    drawing.extend(simple_ep.render_paths());
 
     let ep_center = center.add_size(&Size::new(300.0, 0.0));
     let mut epoch = EpochBuilder::default()
@@ -390,7 +390,7 @@ fn main() {
 
     epoch.draw_fill(&mut draw_fn);
 
-    let epoch_drawing = epoch.render();
+    let epoch_drawing = epoch.render_paths();
 
     let mut mndl = Mandala::new(BBox::new(Point::zero(), Point::splat(250.0)));
 
@@ -419,15 +419,15 @@ fn main() {
         ep
     });
 
-    let mandala_drawing = mndl.render();
+    let mandala_drawing = mndl.render_paths();
 
     let mut app = App {
         gl: GlGraphics::new(opengl),
         update_t: 0.0,
-        segment_drawing_lines: segment_lines.render(),
-        segment_drawing_arcs: segment_arcs.render(),
-        segment_drawing_cubics: segment_cubics.render(),
-        segment_drawing_qads: segment_quads.render(),
+        segment_drawing_lines: segment_lines.render_paths(),
+        segment_drawing_arcs: segment_arcs.render_paths(),
+        segment_drawing_cubics: segment_cubics.render_paths(),
+        segment_drawing_qads: segment_quads.render_paths(),
         _mandala: mndl,
         mandala_drawing,
         drawing,

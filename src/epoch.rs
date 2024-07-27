@@ -237,7 +237,7 @@ impl Epoch {
     }
 
     /// renders all segments, all paths in global coordinates
-    pub fn render(&self) -> Vec<Path> {
+    pub fn render_paths(&self) -> Vec<Path> {
         self.segments
             .iter()
             .flat_map(|s| self.layout_segment(s))
@@ -283,7 +283,7 @@ impl Epoch {
         let test_len =
             outline_box.width().max(outline_box.height()) + segment.center.distance_to(self.center);
 
-        segment.render_with(|pt: &Point| {
+        segment.render_paths_with(|pt: &Point| {
             let mut g_pt = Point::from(segment.to_global(pt.x, pt.y));
 
             let test_line = {
@@ -411,7 +411,7 @@ mod epoch_tests {
             .build()
             .unwrap();
 
-        let rendered = epoch.render();
+        let rendered = epoch.render_paths();
         assert_eq!(rendered.len(), 2);
     }
 
@@ -438,7 +438,7 @@ mod epoch_tests {
             .build()
             .unwrap();
 
-        let rendered = epoch.render();
+        let rendered = epoch.render_paths();
         assert_eq!(rendered.len(), 2);
     }
 
@@ -467,7 +467,7 @@ mod epoch_tests {
             .build()
             .unwrap();
 
-        let rendered = epoch.render();
+        let rendered = epoch.render_paths();
         assert_eq!(rendered.len(), 2);
     }
 
@@ -498,7 +498,7 @@ mod epoch_tests {
             .build()
             .unwrap();
 
-        let rendered = epoch.render();
+        let rendered = epoch.render_paths();
         assert_eq!(rendered.len(), 2);
     }
 
@@ -527,7 +527,7 @@ mod epoch_tests {
             .build()
             .unwrap();
 
-        let rendered = epoch.render();
+        let rendered = epoch.render_paths();
         assert_eq!(rendered.len(), 2);
     }
 }

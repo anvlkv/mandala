@@ -309,22 +309,22 @@ pub fn App() -> impl IntoView {
                     mndl
                 ) = segments.get();
 
-                let v1 = segment_quads.render().iter().map(|p| view!{
+                let v1 = segment_quads.render_paths().iter().map(|p| view!{
                     <path d={p.to_svg_path_d()} stroke="blue"/>
                 }).collect_view();
-                let v2 = segment_arcs.render().iter().map(|p| view!{
+                let v2 = segment_arcs.render_paths().iter().map(|p| view!{
                     <path d={p.to_svg_path_d()} stroke="red"/>
                 }).collect_view();
-                let v3 = segment_cubics.render().iter().map(|p| view!{
+                let v3 = segment_cubics.render_paths().iter().map(|p| view!{
                     <path d={p.to_svg_path_d()} stroke="green"/>
                 }).collect_view();
-                let v4 = segment_lines.render().iter().map(|p| view!{
+                let v4 = segment_lines.render_paths().iter().map(|p| view!{
                     <path d={p.to_svg_path_d()} stroke="purple"/>
                 }).collect_view();
-                let v5 = epoch.render().iter().map(|p| view!{
+                let v5 = epoch.render_paths().iter().map(|p| view!{
                     <path d={p.to_svg_path_d()} stroke="white"/>
                 }).collect_view();
-                let v6= mndl.render().iter().map(|p| view!{
+                let v6= mndl.render_paths().iter().map(|p| view!{
                     <path d={p.to_svg_path_d()} stroke="yellow" fill="none"/>
                 }).collect_view();
 

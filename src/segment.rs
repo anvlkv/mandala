@@ -31,7 +31,7 @@ pub struct MandalaSegment {
     /// between 0.0 and 1.0
     pub breadth: Float,
     /// radius of the segment
-    /// from center to edge
+    /// in absolute units
     pub r_base: Float,
     /// angle of the main axis of the segment
     pub angle_base: Angle,
@@ -116,6 +116,7 @@ impl MandalaSegment {
         }
     }
 
+    /// denormalize breadth in global (absolute) units
     pub fn normalized_breadth(&self) -> Float {
         self.r_base * self.breadth
     }
@@ -156,14 +157,14 @@ impl MandalaSegment {
     }
 
     /// renders all path in global coordinates
-    pub fn render(&self) -> Vec<Path> {
-        self.render_with(|pt| {
+    pub fn render_paths(&self) -> Vec<Path> {
+        self.render_paths_with(|pt| {
             let (x, y) = self.to_global(pt.x, pt.y);
             Point::new(x, y)
         })
     }
 
-    pub fn render_with<F>(&self, with_fn: F) -> Vec<Path>
+    pub fn render_paths_with<F>(&self, with_fn: F) -> Vec<Path>
     where
         F: Fn(&Point) -> Point,
     {
@@ -184,7 +185,7 @@ impl MandalaSegment {
                     mandala,
                     placement_box,
                 } => {
-                    let mut m_render = mandala.render();
+                    let mut m_render = mandala.render_paths();
 
                     let scale = (placement_box.width() / mandala.bounds.width())
                         .min(placement_box.height() / mandala.bounds.height());
@@ -322,7 +323,7 @@ mod test_segement {
             .build()
             .expect("build segment");
 
-        let rendered_paths = segment.render();
+        let rendered_paths = segment.render_paths();
         assert_eq!(rendered_paths.len(), 1);
         let rendered_path = &rendered_paths[0];
         assert_eq!(
