@@ -1,7 +1,6 @@
 use derive_builder::Builder;
 use euclid::default::Transform2D;
 use lyon_geom::Scalar;
-use uuid::Uuid;
 
 use crate::{Angle, BBox, Float, Mandala, Path, Point, Vector};
 
@@ -26,9 +25,6 @@ use crate::{Angle, BBox, Float, Mandala, Path, Point, Vector};
 #[derive(Debug, Clone, Builder, Default)]
 #[builder(build_fn(validate = "Self::validate"))]
 pub struct MandalaSegment {
-    /// id of the segment
-    #[builder(default = "uuid::Uuid::new_v4()")]
-    pub id: Uuid,
     /// realtive inward distance from the outter edge of the segment
     /// from edge to center
     ///

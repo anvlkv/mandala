@@ -15,7 +15,6 @@ ordered-float = { version = "4.0", default-features = false }
 rand = { version = "0.8.5", features = ["small_rng"] }
 rand_chacha = "0.3.1"
 serde = { version = "1.0.204", optional = true }
-uuid = { version = "1.10.0", features = ["v4"] }
 
 
 [features]
@@ -29,7 +28,6 @@ serde = [
     "rand_chacha/serde",
     "const-primes/serde",
     "lyon_geom/serialization",
-    "uuid/serde",
     "dep:serde",
 ]
 
