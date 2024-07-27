@@ -51,20 +51,6 @@ pub struct MandalaSegment {
     pub drawing: Vec<SegmentDrawing>,
 }
 
-/// the drawing of a segment
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone)]
-pub enum SegmentDrawing {
-    /// plain drawing containing multiple path
-    Path(Vec<Path>),
-    /// nested [mandala::Mandala] drawing. Reintroduces coordinate system
-    /// with a new center
-    Mandala {
-        mandala: Mandala,
-        placement_box: BBox,
-    },
-}
-
 impl MandalaSegmentBuilder {
     pub fn validate(&self) -> Result<(), String> {
         if self.angle_base.is_none() {
@@ -171,48 +157,7 @@ impl MandalaSegment {
         let mut rendition = vec![];
 
         for d in self.drawing.iter() {
-            match d {
-                SegmentDrawing::Path(paths) => {
-                    for p in paths.iter() {
-                        let mut path = p.clone();
-                        for pt in path.key_pts() {
-                            *pt = with_fn(pt);
-                        }
-                        rendition.push(path)
-                    }
-                }
-                SegmentDrawing::Mandala {
-                    mandala,
-                    placement_box,
-                } => {
-                    let mut m_render = mandala.render_paths();
-
-                    let scale = (placement_box.width() / mandala.bounds.width())
-                        .min(placement_box.height() / mandala.bounds.height());
-                    let t_s = Transform2D::scale(scale, scale);
-
-                    let diff = with_fn(&placement_box.center())
-                        - BBox::from_size(mandala.bounds.size()).center();
-                    let t = t_s.then_translate(Vector::new(diff.x, diff.y));
-
-                    m_render = m_render
-                        .into_iter()
-                        .filter_map(|mut path| {
-                            // path = path.scale(scale);
-                            for pt in path.key_pts() {
-                                *pt = t.transform_point(*pt);
-                            }
-                            if path.length() >= Scalar::epsilon_for(path.length()).powi(2) {
-                                Some(path)
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-
-                    rendition.extend(m_render);
-                }
-            }
+            rendition.extend(d.render_with(|pt| with_fn(pt)))
         }
 
         rendition
@@ -236,10 +181,82 @@ impl MandalaSegment {
         next
     }
 
+    /// scales the center of this segment, its raidus and boxes if any
     pub fn scale(&self, r_scale: Float) -> Self {
         let mut next = self.clone();
         next.r_base *= r_scale;
+        for d in next.drawing.iter_mut() {
+            match d {
+                SegmentDrawing::Path(_) => {}
+                SegmentDrawing::Mandala { placement_box, .. } => {
+                    *placement_box = placement_box.scale(r_scale, r_scale);
+                }
+            }
+        }
         next
+    }
+}
+
+/// the drawing of a segment
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, Clone)]
+pub enum SegmentDrawing {
+    /// plain drawing containing multiple path
+    Path(Vec<Path>),
+    /// nested [mandala::Mandala] drawing. Reintroduces coordinate system
+    /// with a new center
+    Mandala {
+        mandala: Mandala,
+        placement_box: BBox,
+    },
+}
+
+impl SegmentDrawing {
+    pub fn render_with<F>(&self, with_fn: F) -> Vec<Path>
+    where
+        F: Fn(&Point) -> Point,
+    {
+        match self {
+            SegmentDrawing::Path(paths) => {
+                let mut rendition = vec![];
+                for p in paths.iter() {
+                    let mut path = p.clone();
+                    for pt in path.key_pts() {
+                        *pt = with_fn(pt);
+                    }
+                    rendition.push(path)
+                }
+                rendition
+            }
+            SegmentDrawing::Mandala {
+                mandala,
+                placement_box,
+            } => {
+                let scale = (placement_box.width() / mandala.bounds.width())
+                    .min(placement_box.height() / mandala.bounds.height());
+                let t_s = Transform2D::scale(scale, scale);
+
+                let diff = with_fn(&placement_box.center())
+                    - BBox::from_size(mandala.bounds.size()).center();
+                let t = t_s.then_translate(Vector::new(diff.x, diff.y));
+
+                mandala
+                    .render_paths()
+                    .into_iter()
+                    .filter_map(|mut path| {
+                        // path = path.scale(scale);
+                        for pt in path.key_pts() {
+                            *pt = t.transform_point(*pt);
+                        }
+                        if path.length() >= Scalar::epsilon_for(path.length()).powi(2) {
+                            Some(path)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            }
+        }
     }
 }
 
