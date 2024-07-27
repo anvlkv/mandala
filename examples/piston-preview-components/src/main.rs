@@ -1,7 +1,7 @@
 use glutin_window::GlutinWindow as Window;
 use mandala::{
-    Angle, ArcFlags, CubicCurve, DrawArgs, Epoch, EpochBuilder, EpochLayout, FillValue,
-    GeneratorBuilder, GeneratorMode, Line, MandalaSegment, MandalaSegmentBuilder, Path,
+    Angle, ArcFlags, BBox, CubicCurve, DrawArgs, Epoch, EpochBuilder, EpochLayout, FillValue,
+    GeneratorBuilder, GeneratorMode, Line, Mandala, MandalaSegment, MandalaSegmentBuilder, Path,
     PathSegment, Point, QuadraticCurve, Rect, SegmentDrawing, Size, SvgArc, Transform, Vector,
 };
 use opengl_graphics::{GlGraphics, OpenGL};
@@ -24,6 +24,8 @@ pub struct App {
     segment_drawing_qads: Vec<Path>,
     epoch_drawing: Vec<Path>,
     epoch: Epoch,
+    _mandala: Mandala,
+    mandala_drawing: Vec<Path>,
     update_t: f64,
 }
 
@@ -55,6 +57,7 @@ impl App {
                 .chain(self.segment_drawing_cubics.clone())
                 .chain(self.segment_drawing_qads.clone())
                 .chain(self.epoch_drawing.clone())
+                .chain(self.mandala_drawing.clone())
             {
                 for s in p.into_iter() {
                     let clr = match s {
@@ -156,7 +159,7 @@ fn main() {
         .sweep(sweep)
         .center(center)
         .r_base(80.0)
-        .breadth(60.0)
+        .breadth(0.4)
         .build()
         .unwrap();
 
@@ -201,7 +204,7 @@ fn main() {
         .sweep(sweep)
         .center(center)
         .r_base(80.0)
-        .breadth(60.0)
+        .breadth(0.4)
         .build()
         .unwrap();
 
@@ -239,7 +242,7 @@ fn main() {
         .sweep(sweep)
         .center(center)
         .r_base(80.0)
-        .breadth(60.0)
+        .breadth(0.4)
         .build()
         .unwrap();
 
@@ -276,7 +279,7 @@ fn main() {
         .sweep(sweep)
         .center(center)
         .r_base(80.0)
-        .breadth(60.0)
+        .breadth(0.4)
         .build()
         .unwrap();
 
@@ -284,7 +287,7 @@ fn main() {
     let breadth = 50.0;
 
     let ep_center = center.add_size(&Size::new(0.0, 300.0));
-    let mut epoch = EpochBuilder::default()
+    let mut simple_ep = EpochBuilder::default()
         .center(ep_center)
         .layout(EpochLayout::Circle {
             radius: radius - breadth,
@@ -293,12 +296,11 @@ fn main() {
         .build()
         .unwrap();
 
-    let renderer =
-        |_rng: &mut SmallRng, size: Size| Path::rect(size, Rect::from_size(size).center());
+    let renderer = |_rng: &mut SmallRng, _: Size| Path::rect(Size::splat(100.0), Point::splat(0.0));
 
     let mut gen = GeneratorBuilder::default()
         .renderer(renderer)
-        .mode(GeneratorMode::Block)
+        .mode(GeneratorMode::YStep(25.0))
         .build()
         .unwrap();
 
@@ -317,15 +319,15 @@ fn main() {
             .sweep(Angle::frac_pi_4())
             .center(args.center)
             .r_base(radius)
-            .breadth(50.0)
+            .breadth(0.5)
             .drawing(vec![SegmentDrawing::Path(pattern.clone())])
             .build()
             .unwrap()
     };
 
-    epoch.draw_fill(&mut draw_fn);
+    simple_ep.draw_fill(&mut draw_fn);
 
-    drawing.extend(epoch.render());
+    drawing.extend(simple_ep.render());
 
     let ep_center = center.add_size(&Size::new(300.0, 0.0));
     let mut epoch = EpochBuilder::default()
@@ -380,7 +382,7 @@ fn main() {
             .sweep(Angle::frac_pi_4())
             .center(args.center)
             .r_base(radius)
-            .breadth(50.0)
+            .breadth(0.5)
             .drawing(vec![SegmentDrawing::Path(pattern.clone())])
             .build()
             .unwrap()
@@ -390,6 +392,35 @@ fn main() {
 
     let epoch_drawing = epoch.render();
 
+    let mut mndl = Mandala::new(BBox::new(Point::zero(), Point::splat(250.0)));
+
+    mndl.draw_epoch(|_, _| simple_ep.translate(Vector::new(300.0, 0.0)).scale(0.75));
+
+    let mndl_2 = {
+        let mut m = mndl.clone();
+        m.epochs = m
+            .epochs
+            .into_iter()
+            .map(|ep| ep.translate(Vector::new(-150.0, -300.0)))
+            .collect();
+
+        m
+    };
+
+    mndl.draw_epoch(|_, _| {
+        let mut ep = epoch.translate(Vector::new(0.0, 300.0)).scale(2.25);
+
+        if let Some(sg) = ep.segments.last_mut() {
+            sg.drawing.push(SegmentDrawing::Mandala {
+                mandala: mndl_2.clone(),
+                placement_box: BBox::from_size(Size::splat(50.0)),
+            });
+        }
+        ep
+    });
+
+    let mandala_drawing = mndl.render();
+
     let mut app = App {
         gl: GlGraphics::new(opengl),
         update_t: 0.0,
@@ -397,6 +428,8 @@ fn main() {
         segment_drawing_arcs: segment_arcs.render(),
         segment_drawing_cubics: segment_cubics.render(),
         segment_drawing_qads: segment_quads.render(),
+        _mandala: mndl,
+        mandala_drawing,
         drawing,
         segment_lines,
         segment_arcs,

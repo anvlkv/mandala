@@ -135,7 +135,7 @@ pub fn App() -> impl IntoView {
             .sweep(sweep)
             .center(center)
             .r_base(80.0)
-            .breadth(60.0)
+            .breadth(0.6)
             .build()
             .unwrap();
 
@@ -145,7 +145,7 @@ pub fn App() -> impl IntoView {
             .sweep(sweep)
             .center(center)
             .r_base(80.0)
-            .breadth(60.0)
+            .breadth(0.4)
             .build()
             .unwrap();
 
@@ -155,7 +155,7 @@ pub fn App() -> impl IntoView {
             .sweep(sweep)
             .center(center)
             .r_base(80.0)
-            .breadth(60.0)
+            .breadth(0.6)
             .build()
             .unwrap();
 
@@ -165,7 +165,7 @@ pub fn App() -> impl IntoView {
             .sweep(sweep)
             .center(center)
             .r_base(80.0)
-            .breadth(60.0)
+            .breadth(0.6)
             .build()
             .unwrap();
 
@@ -174,7 +174,7 @@ pub fn App() -> impl IntoView {
         let mut epoch = EpochBuilder::default()
             .center(center.add_size(&Size::new(300.0, 0.0)))
             .layout(EpochLayout::Circle {
-                radius: radius - 50.0,
+                radius: radius * 0.52,
             })
             .outline(true)
             .build()
@@ -211,7 +211,7 @@ pub fn App() -> impl IntoView {
                 .sweep(Angle::frac_pi_4())
                 .center(args.center)
                 .r_base(radius)
-                .breadth(50.0)
+                .breadth(0.45)
                 .drawing(vec![SegmentDrawing::Path(pattern.clone())])
                 .build()
                 .unwrap()
@@ -219,12 +219,38 @@ pub fn App() -> impl IntoView {
 
         epoch.draw_fill(&mut draw_fn);
 
+        let mut mndl = Mandala::new(BBox::new(Point::zero(), Point::splat(300.0)));
+
+        mndl.draw_epoch(|_, _| epoch.translate(Vector::new(-100.0, 300.0)).scale(0.75));
+
+        let mndl_2 = {
+            let mut m = mndl.clone();
+            m.epochs = m
+                .epochs
+                .into_iter()
+                .map(|ep| ep.translate(Vector::new(-150.0, -300.0)))
+                .collect();
+
+            m
+        };
+        mndl.draw_epoch(|_, _| {
+            let mut ep = epoch.translate(Vector::new(-100.0, 300.0)).scale(1.75);
+            if let Some(sg) = ep.segments.last_mut() {
+                sg.drawing.push(SegmentDrawing::Mandala {
+                    mandala: mndl_2.clone(),
+                    placement_box: BBox::new(Point::splat(0.0), Point::splat(100.0)),
+                })
+            }
+            ep
+        });
+
         (
             segment_lines,
             segment_arcs,
             segment_cubics,
             segment_quads,
             epoch,
+            mndl,
         )
     });
 
@@ -232,7 +258,7 @@ pub fn App() -> impl IntoView {
         let c = counter.get();
 
         set_segments.update(|segments| {
-            let (segment_lines, segment_arcs, segment_cubics, segment_quads, ep) = segments;
+            let (segment_lines, segment_arcs, segment_cubics, segment_quads, ep, _) = segments;
 
             segment_quads.angle_base += Angle::degrees(1.0);
             segment_cubics.angle_base += Angle::degrees(1.0);
@@ -279,7 +305,8 @@ pub fn App() -> impl IntoView {
                     segment_cubics,
                     segment_arcs,
                     segment_lines,
-                    epoch
+                    epoch,
+                    mndl
                 ) = segments.get();
 
                 let v1 = segment_quads.render().iter().map(|p| view!{
@@ -297,12 +324,17 @@ pub fn App() -> impl IntoView {
                 let v5 = epoch.render().iter().map(|p| view!{
                     <path d={p.to_svg_path_d()} stroke="white"/>
                 }).collect_view();
+                let v6= mndl.render().iter().map(|p| view!{
+                    <path d={p.to_svg_path_d()} stroke="yellow" fill="none"/>
+                }).collect_view();
+
                 view!{
                     {v1}
                     {v2}
                     {v3}
                     {v4}
                     {v5}
+                    {v6}
                 }
             }}
 

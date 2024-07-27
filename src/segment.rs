@@ -1,7 +1,9 @@
 use derive_builder::Builder;
+use euclid::default::Transform2D;
+use lyon_geom::Scalar;
 use uuid::Uuid;
 
-use crate::{Angle, BBox, Float, Mandala, Path, Point};
+use crate::{Angle, BBox, Float, Mandala, Path, Point, Vector};
 
 /// radial segment
 ///
@@ -22,12 +24,15 @@ use crate::{Angle, BBox, Float, Mandala, Path, Point};
 ///
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Builder, Default)]
+#[builder(build_fn(validate = "Self::validate"))]
 pub struct MandalaSegment {
     /// id of the segment
     #[builder(default = "uuid::Uuid::new_v4()")]
     pub id: Uuid,
-    /// inward distance from the outter edge of the segment
+    /// realtive inward distance from the outter edge of the segment
     /// from edge to center
+    ///
+    /// between 0.0 and 1.0
     pub breadth: Float,
     /// radius of the segment
     /// from center to edge
@@ -64,6 +69,48 @@ pub enum SegmentDrawing {
     },
 }
 
+impl MandalaSegmentBuilder {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.angle_base.is_none() {
+            return Err("`angle_base` is a required property.".to_string());
+        }
+
+        if self.sweep.is_none() {
+            return Err("`sweep` is a required property.".to_string());
+        }
+
+        if self.r_base.is_none() {
+            return Err("`r_base` is a required property.".to_string());
+        }
+
+        if self.center.is_none() {
+            return Err("`center` is a required property.".to_string());
+        }
+
+        if self.breadth.is_none() {
+            return Err("`breadth` is a required property.".to_string());
+        }
+
+        let r_base = self.r_base.unwrap();
+        let breadth = self.breadth.unwrap();
+        let sweep = self.sweep.unwrap();
+
+        if r_base <= 0.0 {
+            return Err("`r_base` must be > 0.0".to_string());
+        }
+
+        if breadth > 1.0 || breadth < 0.0 {
+            return Err("`breadth` must be between 0.0 and 1.0".to_string());
+        }
+
+        if sweep.radians == 0.0 {
+            return Err("`sweep` may not be 0.0".to_string());
+        }
+
+        Ok(())
+    }
+}
+
 impl MandalaSegment {
     /// creates a replica of the segment
     pub fn replicate(&self, angle: Angle) -> Self {
@@ -71,6 +118,10 @@ impl MandalaSegment {
             angle_base: angle,
             ..self.clone()
         }
+    }
+
+    pub fn normalized_breadth(&self) -> Float {
+        self.r_base * self.breadth
     }
 
     /// converts the point from global (absolute) coordinates (x, y) to radial (local, normalized) coordinates (c, r)
@@ -82,7 +133,7 @@ impl MandalaSegment {
         let r = (dx * dx + dy * dy).sqrt();
         let theta = dy.atan2(dx);
         let c = (theta - self.angle_base.radians) / self.sweep.radians * self.normalized;
-        let r_inner = self.r_base - self.breadth;
+        let r_inner = self.r_base - self.normalized_breadth();
         let r_outer = self.r_base;
         let r_normalized = (r - r_inner) / (r_outer - r_inner) * self.normalized;
         (c, r_normalized)
@@ -99,7 +150,7 @@ impl MandalaSegment {
     ///
     /// **important** not all coordinates can be recovered after conversion between global/local
     pub fn to_global(&self, c: Float, r: Float) -> (Float, Float) {
-        let r_inner = self.r_base - self.breadth;
+        let r_inner = self.r_base - self.normalized_breadth();
         let r_outer = self.r_base;
         let r_normalized = r / self.normalized * (r_outer - r_inner) + r_inner;
         let theta = self.angle_base.radians + c / self.normalized * self.sweep.radians;
@@ -138,18 +189,60 @@ impl MandalaSegment {
                     placement_box,
                 } => {
                     let mut m_render = mandala.render();
-                    // for path in m_render.iter_mut() {
-                    //     for pt in path.key_pts() {
-                    //         let diff = placement_box.center() - mandala.bounds.center();
-                    //         *pt = with_fn(&(*pt + diff));
-                    //     }
-                    // }
+
+                    let scale = (placement_box.width() / mandala.bounds.width())
+                        .min(placement_box.height() / mandala.bounds.height());
+                    let t_s = Transform2D::scale(scale, scale);
+
+                    let diff = with_fn(&placement_box.center())
+                        - BBox::from_size(mandala.bounds.size()).center();
+                    let t = t_s.then_translate(Vector::new(diff.x, diff.y));
+
+                    m_render = m_render
+                        .into_iter()
+                        .filter_map(|mut path| {
+                            // path = path.scale(scale);
+                            for pt in path.key_pts() {
+                                *pt = t.transform_point(*pt);
+                            }
+                            if path.length() >= Scalar::epsilon_for(path.length()).powi(2) {
+                                Some(path)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
                     rendition.extend(m_render);
                 }
             }
         }
 
         rendition
+    }
+
+    /// translates the center of this segment, its raidus and boxes if any
+    pub fn translate(&self, by: Vector) -> Self {
+        let mut next = self.clone();
+        let t = Transform2D::translation(by.x, by.y);
+        next.center = t.transform_point(next.center);
+
+        for d in next.drawing.iter_mut() {
+            match d {
+                SegmentDrawing::Path(_) => {}
+                SegmentDrawing::Mandala { placement_box, .. } => {
+                    *placement_box = placement_box.translate(by);
+                }
+            }
+        }
+
+        next
+    }
+
+    pub fn scale(&self, r_scale: Float) -> Self {
+        let mut next = self.clone();
+        next.r_base *= r_scale;
+        next
     }
 }
 
@@ -162,7 +255,7 @@ mod test_segement {
     #[test]
     fn test_builder() {
         let segment = MandalaSegmentBuilder::default()
-            .breadth(1.0)
+            .breadth(0.5)
             .r_base(2.0)
             .angle_base(Angle::radians(0.5))
             .sweep(Angle::pi())
@@ -171,7 +264,7 @@ mod test_segement {
             .build()
             .expect("build segment");
 
-        assert_eq!(segment.breadth, 1.0);
+        assert_eq!(segment.breadth, 0.5);
         assert_eq!(segment.r_base, 2.0);
         assert_eq!(segment.angle_base, Angle::radians(0.5));
         assert_eq!(segment.center, Point::new(3.0, 4.0));
@@ -184,7 +277,7 @@ mod test_segement {
     #[test]
     fn test_conversion_methods() {
         let segment = MandalaSegmentBuilder::default()
-            .breadth(1.0)
+            .breadth(0.5)
             .r_base(2.0)
             .angle_base(Angle::radians(0.5))
             .sweep(Angle::pi())
@@ -224,7 +317,7 @@ mod test_segement {
             to: Point::new(3.0, 4.0),
         }));
         let segment = MandalaSegmentBuilder::default()
-            .breadth(1.0)
+            .breadth(0.5)
             .r_base(2.0)
             .angle_base(Angle::radians(0.5))
             .sweep(Angle::pi())
@@ -251,7 +344,7 @@ mod test_segement {
     #[test]
     fn test_to_angle() {
         let segment = MandalaSegmentBuilder::default()
-            .breadth(1.0)
+            .breadth(0.5)
             .r_base(2.0)
             .angle_base(Angle::radians(0.0))
             .sweep(Angle::pi())

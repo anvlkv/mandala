@@ -82,6 +82,29 @@ impl EpochLayout {
             }
         }
     }
+
+    pub fn scale(&self, scale: Float) -> Self {
+        match self.clone() {
+            EpochLayout::Circle { radius } => EpochLayout::Circle {
+                radius: radius * scale,
+            },
+            EpochLayout::Ellipse { radii } => EpochLayout::Ellipse {
+                radii: Size::new(radii.width * scale, radii.height * scale),
+            },
+            EpochLayout::Polygon {
+                n_sides,
+                radius,
+                start,
+            } => EpochLayout::Polygon {
+                n_sides,
+                radius: radius * scale,
+                start,
+            },
+            EpochLayout::Rectangle { rect } => EpochLayout::Rectangle {
+                rect: Size::new(rect.width * scale, rect.height * scale),
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -187,7 +210,7 @@ impl Epoch {
             },
         };
 
-        let len = range.len();
+        let len = range.clone().count();
 
         let start_angle = self.segments.iter().fold(Angle::zero(), |angle, segment| {
             angle + segment.angle_base + segment.sweep
@@ -212,7 +235,6 @@ impl Epoch {
             let segment = draw_fn(&args);
             args.n += 1;
             args.start_angle += segment.sweep;
-            args.max_sweep -= segment.sweep;
 
             self.segments.push(segment);
         }
@@ -231,12 +253,30 @@ impl Epoch {
             .collect()
     }
 
+    /// translate all direct segments
+    pub fn translate(&self, by: Vector) -> Self {
+        let mut next = self.clone();
+        next.segments = next.segments.iter().map(|s| s.translate(by)).collect();
+        next.center = Transform2D::translation(by.x, by.y).transform_point(next.center);
+
+        next
+    }
+
+    pub fn scale(&self, scale: Float) -> Self {
+        let mut next = self.clone();
+        next.layout = next.layout.scale(scale);
+
+        next.segments = next.segments.iter().map(|s| s.scale(scale)).collect();
+
+        next
+    }
+
     fn layout_segment(&self, segment: &MandalaSegment) -> Vec<Path> {
         let outline = self.layout.outline(self.center);
 
         let segment_outline = Path::new(PathSegment::SweepArc(Arc {
             center: segment.center,
-            radii: Vector::splat(segment.r_base - segment.breadth),
+            radii: Vector::splat(segment.r_base - segment.normalized_breadth()),
             x_rotation: Angle::zero(),
             // increased testing area
             start_angle: segment.angle_base - Angle::frac_pi_4(),
@@ -290,7 +330,7 @@ mod epoch_tests {
 
         epoch.draw_segment(&mut |args| {
             MandalaSegmentBuilder::default()
-                .breadth(1.0)
+                .breadth(0.5)
                 .r_base(2.0)
                 .angle_base(args.start_angle)
                 .sweep(args.max_sweep)
@@ -313,7 +353,7 @@ mod epoch_tests {
 
         epoch.draw_fill(&mut |args| {
             MandalaSegmentBuilder::default()
-                .breadth(1.0)
+                .breadth(0.5)
                 .r_base(2.0)
                 .angle_base(args.start_angle)
                 .sweep(Angle::radians(0.5))
@@ -337,7 +377,7 @@ mod epoch_tests {
         epoch.draw_range(
             &mut |args| {
                 MandalaSegmentBuilder::default()
-                    .breadth(1.0)
+                    .breadth(0.5)
                     .r_base(2.0)
                     .angle_base(args.start_angle)
                     .sweep(args.max_sweep)
@@ -359,7 +399,7 @@ mod epoch_tests {
             .layout(EpochLayout::Circle { radius: 10.0 })
             .outline(true)
             .segments(vec![MandalaSegmentBuilder::default()
-                .breadth(1.0)
+                .breadth(0.5)
                 .r_base(2.0)
                 .angle_base(Angle::zero())
                 .sweep(Angle::two_pi())
@@ -386,7 +426,7 @@ mod epoch_tests {
             .layout(EpochLayout::Circle { radius: 10.0 })
             .outline(true)
             .segments(vec![MandalaSegmentBuilder::default()
-                .breadth(1.0)
+                .breadth(0.5)
                 .r_base(2.0)
                 .angle_base(Angle::zero())
                 .sweep(Angle::two_pi())
@@ -415,7 +455,7 @@ mod epoch_tests {
             })
             .outline(true)
             .segments(vec![MandalaSegmentBuilder::default()
-                .breadth(1.0)
+                .breadth(0.5)
                 .r_base(2.0)
                 .angle_base(Angle::zero())
                 .sweep(Angle::two_pi())
@@ -446,7 +486,7 @@ mod epoch_tests {
             })
             .outline(true)
             .segments(vec![MandalaSegmentBuilder::default()
-                .breadth(1.0)
+                .breadth(0.5)
                 .r_base(2.0)
                 .angle_base(Angle::zero())
                 .sweep(Angle::two_pi())
@@ -475,7 +515,7 @@ mod epoch_tests {
             })
             .outline(true)
             .segments(vec![MandalaSegmentBuilder::default()
-                .breadth(1.0)
+                .breadth(0.5)
                 .r_base(2.0)
                 .angle_base(Angle::zero())
                 .sweep(Angle::two_pi())
