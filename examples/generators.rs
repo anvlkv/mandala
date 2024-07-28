@@ -36,6 +36,7 @@ impl App {
                 for s in p.into_iter() {
                     let clr = match s {
                         mandala::PathSegment::Arc(_) => RED,
+                        mandala::PathSegment::SweepArc(_) => RED,
                         mandala::PathSegment::QuadraticCurve(_) => BLUE,
                         mandala::PathSegment::CubicCurve(_) => PURPLE,
                         _ => WHITE,
@@ -72,11 +73,13 @@ fn main() {
     let mut drawing = Vec::new();
 
     let side = (SIZE - 20) as Float / 8.0;
+    let bounds = Rect::new(Point::zero(), Size::new(side, side));
 
+    // QuadraticCurve examples
     let mut generator = GeneratorBuilder::default()
         .mode(GeneratorMode::GridStep {
-            row_height: side / 3.0,
-            column_width: side / 3.0,
+            row_height: side / 6.0,
+            column_width: side / 6.0,
         })
         .renderer(|rng: &mut SmallRng, size| {
             Path::new(PathSegment::QuadraticCurve(QuadraticCurve {
@@ -91,7 +94,6 @@ fn main() {
         .build()
         .unwrap();
 
-    let bounds = Rect::new(Point::zero(), Size::new(side, side));
     drawing.extend(generator.generate(bounds));
 
     generator.mode = GeneratorMode::XStep(3.0);
@@ -132,6 +134,133 @@ fn main() {
         axis: side / 2.0,
     };
     drawing.extend(generator.generate(Rect::new(Point::new(side * 7.0, 0.0), bounds.size)));
+
+    // CubicCurve examples
+    let mut generator = GeneratorBuilder::default()
+        .mode(GeneratorMode::GridStep {
+            row_height: side / 6.0,
+            column_width: side / 6.0,
+        })
+        .renderer(|rng: &mut SmallRng, size| {
+            Path::new(PathSegment::CubicCurve(CubicCurve {
+                from: Point::zero(),
+                ctrl1: Point::new(
+                    rng.gen_range(0.0..size.width),
+                    rng.gen_range(0.0..size.height),
+                ),
+                ctrl2: Point::new(
+                    rng.gen_range(0.0..size.width),
+                    rng.gen_range(0.0..size.height),
+                ),
+                to: Point::new(size.width, size.height),
+            }))
+        })
+        .build()
+        .unwrap();
+
+    drawing.extend(generator.generate(Rect::new(Point::new(0.0, side), bounds.size)));
+
+    generator.mode = GeneratorMode::XStep(3.0);
+    drawing.extend(generator.generate(Rect::new(Point::new(side, side), bounds.size)));
+
+    generator.mode = GeneratorMode::YStep(3.0);
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 2.0, side), bounds.size)));
+
+    generator.mode = GeneratorMode::XYStep { x: 3.0, y: 3.0 };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 3.0, side), bounds.size)));
+
+    generator.mode = GeneratorMode::XSymmetry {
+        mode: Box::new(GeneratorMode::GridStep {
+            row_height: 3.0,
+            column_width: 3.0,
+        }),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 4.0, side), bounds.size)));
+
+    generator.mode = GeneratorMode::YSymmetry {
+        mode: Box::new(GeneratorMode::YStep(3.0)),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 5.0, side), bounds.size)));
+
+    generator.mode = GeneratorMode::XSymmetry {
+        mode: Box::new(GeneratorMode::XStep(8.0)),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 6.0, side), bounds.size)));
+
+    generator.mode = GeneratorMode::YSymmetry {
+        mode: Box::new(GeneratorMode::XSymmetry {
+            mode: Box::new(GeneratorMode::XStep(3.0)),
+            axis: side / 2.0,
+        }),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 7.0, side), bounds.size)));
+
+    // SweepArc examples
+
+    let mut generator = GeneratorBuilder::default()
+        .mode(GeneratorMode::GridStep {
+            row_height: side / 6.0,
+            column_width: side / 6.0,
+        })
+        .renderer(|rng: &mut SmallRng, size| {
+            let pt = Point::new(size.width / 2.0, size.height / 2.0);
+            Path::new(PathSegment::SweepArc(Arc {
+                center: pt,
+                radii: pt.to_vector(),
+                start_angle: Angle::zero(),
+                sweep_angle: Angle::radians(
+                    rng.gen_range(Angle::zero().radians..=Angle::two_pi().radians),
+                ),
+                x_rotation: Angle::zero(),
+            }))
+        })
+        .build()
+        .unwrap();
+
+    drawing.extend(generator.generate(Rect::new(Point::new(0.0, side * 2.0), bounds.size)));
+
+    generator.mode = GeneratorMode::XStep(3.0);
+    drawing.extend(generator.generate(Rect::new(Point::new(side, side * 2.0), bounds.size)));
+
+    generator.mode = GeneratorMode::YStep(3.0);
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 2.0, side * 2.0), bounds.size)));
+
+    generator.mode = GeneratorMode::XYStep { x: 3.0, y: 3.0 };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 3.0, side * 2.0), bounds.size)));
+
+    generator.mode = GeneratorMode::XSymmetry {
+        mode: Box::new(GeneratorMode::GridStep {
+            row_height: 3.0,
+            column_width: 3.0,
+        }),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 4.0, side * 2.0), bounds.size)));
+
+    generator.mode = GeneratorMode::YSymmetry {
+        mode: Box::new(GeneratorMode::YStep(3.0)),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 5.0, side * 2.0), bounds.size)));
+
+    generator.mode = GeneratorMode::XSymmetry {
+        mode: Box::new(GeneratorMode::XStep(8.0)),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 6.0, side * 2.0), bounds.size)));
+
+    generator.mode = GeneratorMode::YSymmetry {
+        mode: Box::new(GeneratorMode::XSymmetry {
+            mode: Box::new(GeneratorMode::XStep(3.0)),
+            axis: side / 2.0,
+        }),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 7.0, side * 2.0), bounds.size)));
 
     let mut app = App {
         gl: GlGraphics::new(opengl),

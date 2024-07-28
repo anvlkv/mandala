@@ -189,7 +189,6 @@ impl Path {
 
     /// render path to svg path.d
     pub fn to_svg_path_d(&self) -> String {
-        println!("path: {:#?}", self.0);
         let mut it = self.0.iter().rev().peekable();
         let first = it.next().expect("path must not be empty");
 

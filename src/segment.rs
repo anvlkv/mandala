@@ -11,11 +11,11 @@ use crate::{Angle, BBox, Float, Mandala, Path, Point, Vector};
 /// `r` (radius) corresponds to `y` coordinate of [euclid::Point2D];
 /// `c` (circumference) corresponds to `x` coordinate of [euclid::Point2D];
 ///
-/// - `r` is from the inner to the outter edge, where 0 is the inner circle created computed from radius and breadth,
+/// - `r` is from the inner to the outter edge, where 0 is the inner circle computed from radius and breadth,
 /// any **positive** number along `r` is towards the outter edge of this segment;
 /// any **negative** number along `r` is towards the oposite edge
 ///
-/// - `c` is along the length of the outter length of the segment,
+/// - `c` is along the length of the outter arc of the segment,
 /// where 0 matches the angle base,
 /// any **positive** number along `c` is towards increased angle;
 /// any **negative** number along `c` is towards decreased angle;
@@ -48,10 +48,11 @@ pub struct MandalaSegment {
     /// **Default** is 100.0
     #[builder(default = "100.0")]
     pub normalized: Float,
-    /// the raw drawing of this segment.
+    /// the raw drawing of this segment in local coordinates
+    ///
     /// `x` is along the `c` axis of the segment
     /// `y` is along the `r` axis of the segment
-    #[builder(default)]
+    #[builder(default, setter(each(name = "draw")))]
     pub drawing: Vec<SegmentDrawing>,
 }
 
@@ -99,6 +100,8 @@ impl MandalaSegmentBuilder {
 
 impl MandalaSegment {
     /// creates a replica of the segment
+    ///
+    /// returns segment with a new id
     pub fn replicate(&self, angle: Angle) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -112,26 +115,33 @@ impl MandalaSegment {
         self.r_base * self.breadth
     }
 
+    /// compute the angle of a global point relative to center
+    pub fn to_angle(&self, x: Float, y: Float) -> Angle {
+        let dx = x - self.center.x;
+        let dy = y - self.center.y;
+        Angle::radians(dy.atan2(dx)).positive()
+    }
+
     /// converts the point from global (absolute) coordinates (x, y) to radial (local, normalized) coordinates (c, r)
     ///
     /// **important** not all coordinates can be recovered after conversion between global/local
     pub fn to_local(&self, x: Float, y: Float) -> (Float, Float) {
+        // distances from center
         let dx = x - self.center.x;
         let dy = y - self.center.y;
+
+        // compute x to c
+        let theta = Angle::radians(dy.atan2(dx));
+        let diff = (theta - self.angle_base).positive();
+        let c = (diff / self.sweep) * self.normalized;
+
+        // compute y to r
         let r = (dx * dx + dy * dy).sqrt();
-        let theta = dy.atan2(dx);
-        let c = (theta - self.angle_base.radians) / self.sweep.radians * self.normalized;
         let r_inner = self.r_base - self.normalized_breadth();
         let r_outer = self.r_base;
-        let r_normalized = (r - r_inner) / (r_outer - r_inner) * self.normalized;
-        (c, r_normalized)
-    }
+        let r_local = (r - r_inner) / (r_outer - r_inner) * self.normalized;
 
-    /// compute the angle of a point relative to center
-    pub fn to_angle(&self, x: Float, y: Float) -> Angle {
-        let dx = x - self.center.x;
-        let dy = y - self.center.y;
-        Angle::radians(dy.atan2(dx))
+        (c, r_local)
     }
 
     /// converts the point from radial (local, normalized) coordinates (c, r) to global (absolute) (x, y)
@@ -141,10 +151,23 @@ impl MandalaSegment {
         let r_inner = self.r_base - self.normalized_breadth();
         let r_outer = self.r_base;
         let r_normalized = r / self.normalized * (r_outer - r_inner) + r_inner;
-        let theta = self.angle_base.radians + c / self.normalized * self.sweep.radians;
-        let x = self.center.x + r_normalized * theta.cos();
-        let y = self.center.y + r_normalized * theta.sin();
+        let theta = (self.angle_base + Angle::radians((c * self.sweep.radians) / self.normalized))
+            .positive();
+        let (sin, cos) = theta.sin_cos();
+        let x = self.center.x + r_normalized * cos;
+        let y = self.center.y + r_normalized * sin;
         (x, y)
+    }
+
+    /// tests whether a point in global coordinates is in bounds of this segment
+    ///
+    /// the bounds are constrained by breadth and radius, start and sweep angles
+    pub fn is_in_bounds(&self, pt: &Point) -> bool {
+        let (c, r) = self.to_local(pt.x, pt.y);
+
+        let in_bounds = c >= 0.0 && c <= self.normalized && r >= 0.0 && r <= self.normalized;
+
+        in_bounds
     }
 
     /// renders all path in global coordinates
@@ -272,6 +295,8 @@ impl SegmentDrawing {
 
 #[cfg(test)]
 mod test_segement {
+    use euclid::approxeq::ApproxEq;
+
     use crate::{Line, PathSegment};
 
     use super::*;
@@ -332,6 +357,33 @@ mod test_segement {
 
         assert!(diff_x <= 0.000001);
         assert!(diff_y <= 0.000001);
+
+        let segment = MandalaSegmentBuilder::default()
+            .breadth(0.5)
+            .r_base(20.0)
+            .angle_base(Angle::zero())
+            .sweep(Angle::two_pi())
+            .center(Point::zero())
+            .build()
+            .expect("build segment");
+
+        let c = 100.0;
+        let r = 100.0;
+
+        let (global_x_from_c, global_y_from_r) = segment.to_global(c, r);
+
+        assert!(
+            Point::new(global_x_from_c, global_y_from_r).approx_eq(&Point::new(20.0, 0.0)),
+            "global coordinates"
+        );
+
+        let c = 0.0;
+        let (global_x_from_c, global_y_from_r) = segment.to_global(c, r);
+
+        assert!(
+            Point::new(global_x_from_c, global_y_from_r).approx_eq(&Point::new(20.0, 0.0)),
+            "global coordinates"
+        );
     }
 
     #[test]
@@ -379,14 +431,22 @@ mod test_segement {
         let test_cases = vec![
             (1.0, 1.0, Angle::radians(std::f64::consts::FRAC_PI_4)),
             (-1.0, 1.0, Angle::radians(3.0 * std::f64::consts::FRAC_PI_4)),
-            (1.0, -1.0, Angle::radians(-std::f64::consts::FRAC_PI_4)),
+            (
+                1.0,
+                -1.0,
+                Angle::radians(-std::f64::consts::FRAC_PI_4).positive(),
+            ),
             (
                 -1.0,
                 -1.0,
-                Angle::radians(-3.0 * std::f64::consts::FRAC_PI_4),
+                Angle::radians(-3.0 * std::f64::consts::FRAC_PI_4).positive(),
             ),
             (0.0, 1.0, Angle::radians(std::f64::consts::FRAC_PI_2)),
-            (0.0, -1.0, Angle::radians(-std::f64::consts::FRAC_PI_2)),
+            (
+                0.0,
+                -1.0,
+                Angle::radians(-std::f64::consts::FRAC_PI_2).positive(),
+            ),
             (1.0, 0.0, Angle::radians(0.0)),
             (-1.0, 0.0, Angle::radians(std::f64::consts::PI)),
         ];
@@ -394,6 +454,32 @@ mod test_segement {
         for (x, y, expected_angle) in test_cases {
             let angle = segment.to_angle(x, y);
             assert_eq!(angle, expected_angle, "for point ({}, {})", x, y);
+        }
+    }
+
+    #[test]
+    fn test_is_in_bounds() {
+        let segment = MandalaSegmentBuilder::default()
+            .breadth(0.75)
+            .r_base(2.0)
+            .angle_base(Angle::pi())
+            .sweep(Angle::pi())
+            .center(Point::zero())
+            .build()
+            .expect("build segment");
+
+        let test_cases = vec![
+            (Point::new(1.0, 1.0), false),
+            (Point::new(-1.0, -1.0), true),
+            (Point::new(-2.0, -2.0), false),
+            (Point::new(0.0, 2.0), false),
+            (Point::new(0.0, -2.0), true),
+            (Point::new(2.0, 0.0), true),
+            (Point::new(-2.0, 0.0), true),
+        ];
+
+        for (pt, expected) in test_cases {
+            assert_eq!(segment.is_in_bounds(&pt), expected, "point: {pt:?}")
         }
     }
 }
