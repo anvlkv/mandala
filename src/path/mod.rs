@@ -166,12 +166,12 @@ impl Path {
         Self(LinkedList::from_iter(self.0.iter().map(|s| s.scale(scale))))
     }
 
-    pub fn reflect_x(&self, x_pos: Float) -> Self {
+    pub fn flip_along_x(&self, x_pos: Float) -> Self {
         Self(LinkedList::from_iter(
             self.0.iter().map(|s| s.flip_along_x(x_pos)),
         ))
     }
-    pub fn reflect_y(&self, y_pos: Float) -> Self {
+    pub fn flip_along_y(&self, y_pos: Float) -> Self {
         Self(LinkedList::from_iter(
             self.0.iter().map(|s| s.flip_along_y(y_pos)),
         ))

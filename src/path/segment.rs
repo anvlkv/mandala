@@ -48,7 +48,7 @@ impl PathSegment {
                 radii: s.radii,
                 start_angle: s.start_angle,
                 sweep_angle: s.sweep_angle,
-                x_rotation: s.x_rotation,
+                x_rotation: s.x_rotation + Angle::pi(),
             }),
             PathSegment::QuadraticCurve(s) => PathSegment::QuadraticCurve(QuadraticCurve {
                 to: Point::new(x_pos_axis - (s.from.x - x_pos_axis), s.from.y),
@@ -86,7 +86,7 @@ impl PathSegment {
                 radii: s.radii,
                 start_angle: s.start_angle,
                 sweep_angle: s.sweep_angle,
-                x_rotation: s.x_rotation,
+                x_rotation: s.x_rotation + Angle::pi(),
             }),
             PathSegment::QuadraticCurve(s) => PathSegment::QuadraticCurve(QuadraticCurve {
                 to: Point::new(s.from.x, y_pos_axis - (s.from.y - y_pos_axis)),

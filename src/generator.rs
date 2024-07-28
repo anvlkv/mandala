@@ -201,11 +201,15 @@ impl GeneratorMode {
                 }))
             }
             GeneratorMode::XSymmetry { mode, axis } => {
-                let bounds = bounds.inner_rect(SideOffsets2D::new(0.0, 0.0, *axis, 0.0));
+                let mut off = SideOffsets2D::zero();
+                off.top = *axis;
+                let bounds = bounds.inner_rect(off);
                 mode.bounds_iter(bounds)
             }
             GeneratorMode::YSymmetry { mode, axis } => {
-                let bounds = bounds.inner_rect(SideOffsets2D::new(0.0, *axis, 0.0, 0.0));
+                let mut off = SideOffsets2D::zero();
+                off.left = *axis;
+                let bounds = bounds.inner_rect(off);
                 mode.bounds_iter(bounds)
             }
         }
@@ -214,12 +218,20 @@ impl GeneratorMode {
     fn handle_post_gen(&self, generated: Vec<Path>) -> Vec<Path> {
         match self {
             GeneratorMode::XSymmetry { axis, mode } => {
-                let inner = mode.handle_post_gen(generated);
-                inner.into_iter().map(|p| p.reflect_x(*axis)).collect()
+                let inner = mode.handle_post_gen(generated.clone());
+                inner
+                    .into_iter()
+                    .map(|p| p.flip_along_x(*axis))
+                    .chain(generated)
+                    .collect()
             }
             GeneratorMode::YSymmetry { axis, mode } => {
-                let inner = mode.handle_post_gen(generated);
-                inner.into_iter().map(|p| p.reflect_y(*axis)).collect()
+                let inner = mode.handle_post_gen(generated.clone());
+                inner
+                    .into_iter()
+                    .map(|p| p.flip_along_y(*axis))
+                    .chain(generated)
+                    .collect()
             }
             _ => generated,
         }
@@ -233,7 +245,8 @@ where
 {
     /// runs generation
     pub fn generate(&mut self, gen_bounds: Rect) -> Vec<Path> {
-        let it = self.mode.bounds_iter(gen_bounds).enumerate();
+        let gen_size_b = Rect::new(Point::zero(), gen_bounds.size);
+        let it = self.mode.bounds_iter(gen_size_b).enumerate();
         let mut result = vec![];
         let render_fn = self.renderer;
 
@@ -260,7 +273,12 @@ where
             result.push(path.translate(Vector::new(rect.origin.x, rect.origin.y)));
         }
 
-        self.mode.handle_post_gen(result)
+        let by = gen_bounds.origin.to_vector();
+        self.mode
+            .handle_post_gen(result)
+            .into_iter()
+            .map(|p| p.translate(by))
+            .collect()
     }
 }
 
@@ -463,15 +481,15 @@ mod generator_tests {
         let mut iter = mode.bounds_iter(bounds);
         assert_eq!(
             iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 15.0))
+            Rect::new(Point::new(0.0, 15.0), Size::new(10.0, 15.0))
         );
         assert_eq!(
             iter.next().unwrap(),
-            Rect::new(Point::new(10.0, 0.0), Size::new(10.0, 15.0))
+            Rect::new(Point::new(10.0, 15.0), Size::new(10.0, 15.0))
         );
         assert_eq!(
             iter.next().unwrap(),
-            Rect::new(Point::new(20.0, 0.0), Size::new(10.0, 15.0))
+            Rect::new(Point::new(20.0, 15.0), Size::new(10.0, 15.0))
         );
         assert!(iter.next().is_none());
     }
@@ -487,15 +505,15 @@ mod generator_tests {
         let mut iter = mode.bounds_iter(bounds);
         assert_eq!(
             iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 0.0), Size::new(15.0, 10.0))
+            Rect::new(Point::new(15.0, 0.0), Size::new(15.0, 10.0))
         );
         assert_eq!(
             iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 10.0), Size::new(15.0, 10.0))
+            Rect::new(Point::new(15.0, 10.0), Size::new(15.0, 10.0))
         );
         assert_eq!(
             iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 20.0), Size::new(15.0, 10.0))
+            Rect::new(Point::new(15.0, 20.0), Size::new(15.0, 10.0))
         );
         assert!(iter.next().is_none());
     }

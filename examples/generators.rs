@@ -108,24 +108,18 @@ fn main() {
             row_height: 3.0,
             column_width: 3.0,
         }),
-        axis: 8.0,
+        axis: side / 2.0,
     };
     drawing.extend(generator.generate(Rect::new(Point::new(side * 4.0, 0.0), bounds.size)));
 
     generator.mode = GeneratorMode::YSymmetry {
-        mode: Box::new(GeneratorMode::GridStep {
-            row_height: 3.0,
-            column_width: 3.0,
-        }),
+        mode: Box::new(GeneratorMode::YStep(3.0)),
         axis: side / 2.0,
     };
     drawing.extend(generator.generate(Rect::new(Point::new(side * 5.0, 0.0), bounds.size)));
 
     generator.mode = GeneratorMode::XSymmetry {
-        mode: Box::new(GeneratorMode::GridStep {
-            row_height: 3.0,
-            column_width: 3.0,
-        }),
+        mode: Box::new(GeneratorMode::XStep(8.0)),
         axis: side / 2.0,
     };
     drawing.extend(generator.generate(Rect::new(Point::new(side * 6.0, 0.0), bounds.size)));
