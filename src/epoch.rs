@@ -2,6 +2,7 @@ use std::ops::{Range, RangeBounds};
 
 use derive_builder::Builder;
 use euclid::Transform2D;
+use uuid::Uuid;
 
 use crate::{
     segment::MandalaSegment, Angle, Arc, Float, Line, Path, PathSegment, Point, Rect, Size, Vector,
@@ -13,6 +14,9 @@ use crate::{
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Builder, Clone)]
 pub struct Epoch {
+    /// id of the epoch
+    #[builder(default = "uuid::Uuid::new_v4()")]
+    pub id: Uuid,
     /// center of the epoch
     pub center: Point,
     /// layout mode of the epoch
