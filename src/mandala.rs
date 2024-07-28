@@ -1,8 +1,12 @@
+use uuid::Uuid;
+
 use crate::{BBox, Epoch, Path};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone)]
 pub struct Mandala {
+    /// id of the mandala
+    pub id: Uuid,
     /// bounds of the mandala in global coordinates
     pub bounds: BBox,
     /// content
@@ -13,6 +17,7 @@ impl Mandala {
     /// new mandala with its inner bounds
     pub fn new(bounds: BBox) -> Self {
         Self {
+            id: Uuid::new_v4(),
             bounds,
             epochs: vec![],
         }

@@ -101,6 +101,7 @@ impl MandalaSegment {
     /// creates a replica of the segment
     pub fn replicate(&self, angle: Angle) -> Self {
         Self {
+            id: Uuid::new_v4(),
             angle_base: angle,
             ..self.clone()
         }
@@ -154,6 +155,7 @@ impl MandalaSegment {
         })
     }
 
+    /// renders all path using provided point conversion function
     pub fn render_paths_with<F>(&self, with_fn: F) -> Vec<Path>
     where
         F: Fn(&Point) -> Point,
@@ -168,11 +170,13 @@ impl MandalaSegment {
     }
 
     /// translates the center of this segment, its raidus and boxes if any
+    ///
+    /// returns segment with a new id
     pub fn translate(&self, by: Vector) -> Self {
         let mut next = self.clone();
         let t = Transform2D::translation(by.x, by.y);
         next.center = t.transform_point(next.center);
-
+        next.id = Uuid::new_v4();
         for d in next.drawing.iter_mut() {
             match d {
                 SegmentDrawing::Mandala { placement_box, .. } => {
@@ -186,9 +190,12 @@ impl MandalaSegment {
     }
 
     /// scales the center of this segment, its raidus and boxes if any
+    ///
+    /// returns segment with a new id
     pub fn scale(&self, r_scale: Float) -> Self {
         let mut next = self.clone();
         next.r_base *= r_scale;
+        next.id = Uuid::new_v4();
         for d in next.drawing.iter_mut() {
             match d {
                 SegmentDrawing::Mandala { placement_box, .. } => {

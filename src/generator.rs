@@ -35,7 +35,7 @@ where
 {
     /// Fill mode
     pub mode: GeneratorMode,
-    /// Pattern renderrer
+    /// Pattern renderer
     pub renderer: F,
     /// randomness generator
     #[builder(default = "R::from_entropy()")]

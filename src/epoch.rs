@@ -253,20 +253,26 @@ impl Epoch {
             .collect()
     }
 
-    /// translate all direct segments
+    /// translates all direct segments
+    ///
+    /// returns epoch with a new id
     pub fn translate(&self, by: Vector) -> Self {
         let mut next = self.clone();
         next.segments = next.segments.iter().map(|s| s.translate(by)).collect();
         next.center = Transform2D::translation(by.x, by.y).transform_point(next.center);
+        next.id = Uuid::new_v4();
 
         next
     }
 
+    /// scales all direct segments
+    ///
+    /// returns epoch with a new id
     pub fn scale(&self, scale: Float) -> Self {
         let mut next = self.clone();
         next.layout = next.layout.scale(scale);
-
         next.segments = next.segments.iter().map(|s| s.scale(scale)).collect();
+        next.id = Uuid::new_v4();
 
         next
     }
