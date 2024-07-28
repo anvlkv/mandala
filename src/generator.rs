@@ -217,22 +217,20 @@ impl GeneratorMode {
 
     fn handle_post_gen(&self, generated: Vec<Path>) -> Vec<Path> {
         match self {
-            GeneratorMode::XSymmetry { axis, mode } => {
-                let inner = mode.handle_post_gen(generated.clone());
-                inner
-                    .into_iter()
+            GeneratorMode::XSymmetry { axis, mode } => mode.handle_post_gen(
+                generated
+                    .iter()
                     .map(|p| p.flip_along_x(*axis))
-                    .chain(generated)
-                    .collect()
-            }
-            GeneratorMode::YSymmetry { axis, mode } => {
-                let inner = mode.handle_post_gen(generated.clone());
-                inner
-                    .into_iter()
+                    .chain(generated.clone())
+                    .collect(),
+            ),
+            GeneratorMode::YSymmetry { axis, mode } => mode.handle_post_gen(
+                generated
+                    .iter()
                     .map(|p| p.flip_along_y(*axis))
-                    .chain(generated)
-                    .collect()
-            }
+                    .chain(generated.clone())
+                    .collect(),
+            ),
             _ => generated,
         }
     }

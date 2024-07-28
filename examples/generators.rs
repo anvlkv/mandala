@@ -71,7 +71,7 @@ fn main() {
 
     let mut drawing = Vec::new();
 
-    let side = SIZE as Float / 8.0;
+    let side = (SIZE - 20) as Float / 8.0;
 
     let mut generator = GeneratorBuilder::default()
         .mode(GeneratorMode::GridStep {
@@ -123,6 +123,15 @@ fn main() {
         axis: side / 2.0,
     };
     drawing.extend(generator.generate(Rect::new(Point::new(side * 6.0, 0.0), bounds.size)));
+
+    generator.mode = GeneratorMode::YSymmetry {
+        mode: Box::new(GeneratorMode::XSymmetry {
+            mode: Box::new(GeneratorMode::XStep(3.0)),
+            axis: side / 2.0,
+        }),
+        axis: side / 2.0,
+    };
+    drawing.extend(generator.generate(Rect::new(Point::new(side * 7.0, 0.0), bounds.size)));
 
     let mut app = App {
         gl: GlGraphics::new(opengl),
