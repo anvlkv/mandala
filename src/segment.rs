@@ -39,7 +39,7 @@ pub struct MandalaSegment {
     pub sweep: Angle,
     /// center of the circle in global (x, y) coordinates
     pub center: Point,
-    /// normalize local coordinates as fraction of corresponding radial dimension
+    /// denormalize local coordinates as fraction of corresponding radial dimension when converting to global
     ///
     /// **Default** is 100.0
     #[builder(default = "100.0")]
@@ -171,10 +171,10 @@ impl MandalaSegment {
 
         for d in next.drawing.iter_mut() {
             match d {
-                SegmentDrawing::Path(_) => {}
                 SegmentDrawing::Mandala { placement_box, .. } => {
                     *placement_box = placement_box.translate(by);
                 }
+                _ => {}
             }
         }
 
@@ -187,10 +187,10 @@ impl MandalaSegment {
         next.r_base *= r_scale;
         for d in next.drawing.iter_mut() {
             match d {
-                SegmentDrawing::Path(_) => {}
                 SegmentDrawing::Mandala { placement_box, .. } => {
                     *placement_box = placement_box.scale(r_scale, r_scale);
                 }
+                _ => {}
             }
         }
         next
@@ -239,16 +239,15 @@ impl SegmentDrawing {
                 let diff = with_fn(&placement_box.center())
                     - BBox::from_size(mandala.bounds.size()).center();
                 let t = t_s.then_translate(Vector::new(diff.x, diff.y));
-
+                let min_len = Scalar::epsilon_for(Float::ONE).powi(2);
                 mandala
                     .render_paths()
                     .into_iter()
                     .filter_map(|mut path| {
-                        // path = path.scale(scale);
                         for pt in path.key_pts() {
                             *pt = t.transform_point(*pt);
                         }
-                        if path.length() >= Scalar::epsilon_for(path.length()).powi(2) {
+                        if path.length() >= min_len {
                             Some(path)
                         } else {
                             None
