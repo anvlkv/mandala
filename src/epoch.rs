@@ -286,7 +286,7 @@ impl Epoch {
             x_rotation: Angle::zero(),
             // increased testing area
             start_angle: segment.angle_base - Angle::frac_pi_4(),
-            sweep_angle: segment.sweep + Angle::pi(),
+            sweep_angle: segment.sweep + Angle::frac_pi_2(),
         }));
 
         let outline_box = outline.bounds();
