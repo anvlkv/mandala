@@ -1,7 +1,7 @@
 [package]
 name = "mandala"
 description = "Set of utilities for generative radial drawing and layout"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["a.nvlkv <a.nvlkv@pm.me>"]
 keywords = ["generative", "radial", "drawing"]

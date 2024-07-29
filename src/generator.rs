@@ -340,18 +340,17 @@ mod generator_tests {
         let mode = GeneratorMode::XStep(10.0);
         let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(30.0, 20.0));
         let mut iter = mode.bounds_iter(bounds);
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 20.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(10.0, 0.0), Size::new(10.0, 20.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(20.0, 0.0), Size::new(10.0, 20.0))
-        );
+        let expected_rects = [
+            (0.0, 0.0, 10.0, 20.0),
+            (10.0, 0.0, 10.0, 20.0),
+            (20.0, 0.0, 10.0, 20.0),
+        ];
+        for &(x, y, width, height) in &expected_rects {
+            assert_eq!(
+                iter.next().unwrap(),
+                Rect::new(Point::new(x, y), Size::new(width, height))
+            );
+        }
         assert!(iter.next().is_none());
     }
 
@@ -360,18 +359,17 @@ mod generator_tests {
         let mode = GeneratorMode::YStep(10.0);
         let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(20.0, 30.0));
         let mut iter = mode.bounds_iter(bounds);
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 0.0), Size::new(20.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 10.0), Size::new(20.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 20.0), Size::new(20.0, 10.0))
-        );
+        let expected_rects = [
+            (0.0, 0.0, 20.0, 10.0),
+            (0.0, 10.0, 20.0, 10.0),
+            (0.0, 20.0, 20.0, 10.0),
+        ];
+        for &(x, y, width, height) in &expected_rects {
+            assert_eq!(
+                iter.next().unwrap(),
+                Rect::new(Point::new(x, y), Size::new(width, height))
+            );
+        }
         assert!(iter.next().is_none());
     }
 
@@ -380,18 +378,13 @@ mod generator_tests {
         let mode = GeneratorMode::XYStep { x: 10.0, y: 10.0 };
         let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(30.0, 30.0));
         let mut iter = mode.bounds_iter(bounds);
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(10.0, 10.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(20.0, 20.0), Size::new(10.0, 10.0))
-        );
+        let expected_rects = [(0.0, 0.0), (10.0, 10.0), (20.0, 20.0)];
+        for &(x, y) in &expected_rects {
+            assert_eq!(
+                iter.next().unwrap(),
+                Rect::new(Point::new(x, y), Size::new(10.0, 10.0))
+            );
+        }
         assert!(iter.next().is_none());
     }
 
@@ -403,42 +396,23 @@ mod generator_tests {
         };
         let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(30.0, 30.0));
         let mut iter = mode.bounds_iter(bounds);
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(10.0, 0.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(20.0, 0.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 10.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(10.0, 10.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(20.0, 10.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 20.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(10.0, 20.0), Size::new(10.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(20.0, 20.0), Size::new(10.0, 10.0))
-        );
+        let expected_rects = [
+            (0.0, 0.0),
+            (10.0, 0.0),
+            (20.0, 0.0),
+            (0.0, 10.0),
+            (10.0, 10.0),
+            (20.0, 10.0),
+            (0.0, 20.0),
+            (10.0, 20.0),
+            (20.0, 20.0),
+        ];
+        for &(x, y) in &expected_rects {
+            assert_eq!(
+                iter.next().unwrap(),
+                Rect::new(Point::new(x, y), Size::new(10.0, 10.0))
+            );
+        }
         assert!(iter.next().is_none());
     }
 
@@ -477,18 +451,17 @@ mod generator_tests {
         };
         let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(30.0, 30.0));
         let mut iter = mode.bounds_iter(bounds);
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(0.0, 15.0), Size::new(10.0, 15.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(10.0, 15.0), Size::new(10.0, 15.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(20.0, 15.0), Size::new(10.0, 15.0))
-        );
+        let expected_rects = [
+            (0.0, 15.0, 10.0, 15.0),
+            (10.0, 15.0, 10.0, 15.0),
+            (20.0, 15.0, 10.0, 15.0),
+        ];
+        for &(x, y, width, height) in &expected_rects {
+            assert_eq!(
+                iter.next().unwrap(),
+                Rect::new(Point::new(x, y), Size::new(width, height))
+            );
+        }
         assert!(iter.next().is_none());
     }
 
@@ -501,18 +474,17 @@ mod generator_tests {
         };
         let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(30.0, 30.0));
         let mut iter = mode.bounds_iter(bounds);
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(15.0, 0.0), Size::new(15.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(15.0, 10.0), Size::new(15.0, 10.0))
-        );
-        assert_eq!(
-            iter.next().unwrap(),
-            Rect::new(Point::new(15.0, 20.0), Size::new(15.0, 10.0))
-        );
+        let expected_rects = [
+            (15.0, 0.0, 15.0, 10.0),
+            (15.0, 10.0, 15.0, 10.0),
+            (15.0, 20.0, 15.0, 10.0),
+        ];
+        for &(x, y, width, height) in &expected_rects {
+            assert_eq!(
+                iter.next().unwrap(),
+                Rect::new(Point::new(x, y), Size::new(width, height))
+            );
+        }
         assert!(iter.next().is_none());
     }
 }
