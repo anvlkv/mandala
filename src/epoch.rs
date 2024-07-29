@@ -220,7 +220,7 @@ impl Epoch {
             .segments
             .iter()
             .fold(Angle::two_pi(), |angle, segment| angle - segment.sweep)
-            / len as f64;
+            / len as Float;
 
         let n = self.segments.len() + 1;
 

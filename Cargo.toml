@@ -19,9 +19,11 @@ uuid = { version = "1.10.0", features = ["v4"] }
 
 
 [features]
-default = ["f64", "serde"]
+default = ["f64", "serde", "2d"]
 f32 = []
 f64 = []
+2d = []
+3d = []
 serde = [
     "euclid/serde",
     "ordered-float/serde",

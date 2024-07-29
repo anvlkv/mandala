@@ -58,7 +58,7 @@ impl Path {
             let from = if i == 1 {
                 pt_0
             } else {
-                let angle = angle_step * (i - 1) as f64 + start_angle;
+                let angle = angle_step * (i - 1) as Float + start_angle;
                 let x = center.x + radius * angle.radians.cos();
                 let y = center.y + radius * angle.radians.sin();
                 Point::new(x, y)
@@ -66,7 +66,7 @@ impl Path {
             let to = if i == sides {
                 pt_0
             } else {
-                let angle = angle_step * i as f64 + start_angle;
+                let angle = angle_step * i as Float + start_angle;
                 let x = center.x + radius * angle.radians.cos();
                 let y = center.y + radius * angle.radians.sin();
                 Point::new(x, y)
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn test_circle_path() {
         for i in 1..=50 {
-            let r = i as f64 * 5.07;
+            let r = i as Float * 5.07;
             let c = Path::circle(Point::splat(r), r);
             let expected_len = r * 2.0 * std::f64::consts::PI;
             assert!(
