@@ -1,5 +1,0 @@
----
-source: src/path/mod.rs
-expression: svg_path_d
----
-"M 0,0 L 1,1 A 1,1 40 0 0 2,0 Q 3,2 4,1 C 5,2 6,0 7,1"

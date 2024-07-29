@@ -16,14 +16,17 @@ rand = { version = "0.8.5", features = ["small_rng"] }
 rand_chacha = "0.3.1"
 serde = { version = "1.0.204", optional = true }
 uuid = { version = "1.10.0", features = ["v4"] }
+pix = { version = "0.13.3", optional = true }
+cfg-if = "1.0.0"
 
 
 [features]
-default = ["f64", "serde", "2d"]
+default = ["f64", "serde", "2d", "styled"]
 f32 = []
 f64 = []
 2d = []
 3d = []
+styled = ["dep:pix"]
 serde = [
     "euclid/serde",
     "ordered-float/serde",
