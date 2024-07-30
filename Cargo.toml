@@ -21,11 +21,9 @@ cfg-if = "1.0.0"
 
 
 [features]
-default = ["f64", "serde", "2d", "styled"]
+default = ["f64", "serde", "styled"]
 f32 = []
 f64 = []
-2d = []
-3d = []
 styled = ["dep:pix"]
 serde = [
     "euclid/serde",

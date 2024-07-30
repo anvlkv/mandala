@@ -20,8 +20,11 @@ pub struct Stroke {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum StrokePosition {
+    /// stroke on the inside of the closed shape
     Inside,
+    /// stroke on the outside of the closed shape
     Outside,
+    /// stroke evenly distributed along both sides of the path
     #[default]
     Center,
 }
@@ -36,17 +39,20 @@ impl Default for Stroke {
     }
 }
 
+/// source for raster drawing
 #[derive(Clone)]
 pub enum RasterSrc {
+    /// plain color
     Plain(SRgb8),
+    /// linear gradient with multiple stops.
+    ///
+    /// stops between 0.0 - 1.0
     Gradient {
         stops: Vec<(Float, SRgb8)>,
         angle: Angle,
     },
-    Texture {
-        raster: Raster<SRgb8>,
-        angle: Angle,
-    },
+    /// texture fill at angle
+    Texture { raster: Raster<SRgb8>, angle: Angle },
 }
 
 #[cfg(feature = "serde")]
