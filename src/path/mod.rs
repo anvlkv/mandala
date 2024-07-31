@@ -213,6 +213,31 @@ impl Path {
         }
     }
 
+    /// given the position of axis along `x` flip (mirror) the path
+    pub fn flip_horizontal(&self, pos: Float) -> Self {
+        Self {
+            commands: self
+                .commands
+                .iter()
+                .map(|c| c.flip_horizontal(pos))
+                .collect(),
+            #[cfg(feature = "styled")]
+            style: self.style.clone(),
+        }
+    }
+    /// given the position of axis along `y` flip (mirror) the path
+    pub fn flip_vertical(&self, pos: Float) -> Self {
+        let mut transformed_commands = Vec::new();
+        for command in &self.commands {
+            transformed_commands.push(command.flip_vertical(pos));
+        }
+        Self {
+            commands: transformed_commands,
+            #[cfg(feature = "styled")]
+            style: self.style.clone(),
+        }
+    }
+
     // pub fn sampling_iter(&self, from: Option<Point>) {
     //     let from = from.unwrap_or(Point::zero());
     //     let lengths = self.lengths();

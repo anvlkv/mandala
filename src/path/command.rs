@@ -326,4 +326,146 @@ impl PathCommand {
             _ => self.clone(),
         }
     }
+
+    /// given the position of horizontal axis flip (mirror) the path
+    pub fn flip_vertical(&self, pos: Float) -> Self {
+        match self {
+            PathCommand::To(PathCommandOp::Move(to)) => {
+                PathCommand::To(PathCommandOp::Move(Point::new(pos * 2.0 - to.x, to.y)))
+            }
+            PathCommand::By(PathCommandOp::Move(by)) => {
+                PathCommand::By(PathCommandOp::Move(Vector::new(by.x, by.y)))
+            }
+            PathCommand::To(PathCommandOp::Line(to)) => {
+                PathCommand::To(PathCommandOp::Line(Point::new(pos * 2.0 - to.x, to.y)))
+            }
+            PathCommand::By(PathCommandOp::Line(by)) => {
+                PathCommand::By(PathCommandOp::Line(Vector::new(by.x, by.y)))
+            }
+            PathCommand::To(PathCommandOp::CubicCurve { to, ctrl1, ctrl2 }) => {
+                PathCommand::To(PathCommandOp::CubicCurve {
+                    to: Point::new(pos * 2.0 - to.x, to.y),
+                    ctrl1: Point::new(pos * 2.0 - ctrl1.x, ctrl1.y),
+                    ctrl2: Point::new(pos * 2.0 - ctrl2.x, ctrl2.y),
+                })
+            }
+            PathCommand::By(PathCommandOp::CubicCurve { to, ctrl1, ctrl2 }) => {
+                PathCommand::By(PathCommandOp::CubicCurve {
+                    to: Vector::new(to.x, to.y),
+                    ctrl1: Vector::new(ctrl1.x, ctrl1.y),
+                    ctrl2: Vector::new(ctrl2.x, ctrl2.y),
+                })
+            }
+            PathCommand::To(PathCommandOp::QudraticCurve { to, ctrl }) => {
+                PathCommand::To(PathCommandOp::QudraticCurve {
+                    to: Point::new(pos * 2.0 - to.x, to.y),
+                    ctrl: Point::new(pos * 2.0 - ctrl.x, ctrl.y),
+                })
+            }
+            PathCommand::By(PathCommandOp::QudraticCurve { to, ctrl }) => {
+                PathCommand::By(PathCommandOp::QudraticCurve {
+                    to: Vector::new(to.x, to.y),
+                    ctrl: Vector::new(ctrl.x, ctrl.y),
+                })
+            }
+            PathCommand::To(PathCommandOp::Arc {
+                to,
+                radii,
+                x_rotation,
+                large_arc,
+                sweep,
+            }) => PathCommand::To(PathCommandOp::Arc {
+                to: Point::new(pos * 2.0 - to.x, to.y),
+                radii: Vector::new(radii.x, radii.y),
+                x_rotation: *x_rotation + Angle::pi(),
+                large_arc: *large_arc,
+                sweep: *sweep,
+            }),
+            PathCommand::By(PathCommandOp::Arc {
+                to,
+                radii,
+                x_rotation,
+                large_arc,
+                sweep,
+            }) => PathCommand::By(PathCommandOp::Arc {
+                to: Vector::new(to.x, to.y),
+                radii: Vector::new(radii.x, radii.y),
+                x_rotation: *x_rotation + Angle::pi(),
+                large_arc: *large_arc,
+                sweep: *sweep,
+            }),
+            _ => self.clone(),
+        }
+    }
+
+    /// given the position of vertical axis flip (mirror) the path
+    pub fn flip_horizontal(&self, pos: Float) -> Self {
+        match self {
+            PathCommand::To(PathCommandOp::Move(to)) => {
+                PathCommand::To(PathCommandOp::Move(Point::new(to.x, pos * 2.0 - to.y)))
+            }
+            PathCommand::By(PathCommandOp::Move(by)) => {
+                PathCommand::By(PathCommandOp::Move(Vector::new(by.x, -by.y)))
+            }
+            PathCommand::To(PathCommandOp::Line(to)) => {
+                PathCommand::To(PathCommandOp::Line(Point::new(to.x, pos * 2.0 - to.y)))
+            }
+            PathCommand::By(PathCommandOp::Line(by)) => {
+                PathCommand::By(PathCommandOp::Line(Vector::new(by.x, -by.y)))
+            }
+            PathCommand::To(PathCommandOp::CubicCurve { to, ctrl1, ctrl2 }) => {
+                PathCommand::To(PathCommandOp::CubicCurve {
+                    to: Point::new(to.x, pos * 2.0 - to.y),
+                    ctrl1: Point::new(ctrl1.x, pos * 2.0 - ctrl1.y),
+                    ctrl2: Point::new(ctrl2.x, pos * 2.0 - ctrl2.y),
+                })
+            }
+            PathCommand::By(PathCommandOp::CubicCurve { to, ctrl1, ctrl2 }) => {
+                PathCommand::By(PathCommandOp::CubicCurve {
+                    to: Vector::new(to.x, -to.y),
+                    ctrl1: Vector::new(ctrl1.x, -ctrl1.y),
+                    ctrl2: Vector::new(ctrl2.x, -ctrl2.y),
+                })
+            }
+            PathCommand::To(PathCommandOp::QudraticCurve { to, ctrl }) => {
+                PathCommand::To(PathCommandOp::QudraticCurve {
+                    to: Point::new(to.x, pos * 2.0 - to.y),
+                    ctrl: Point::new(ctrl.x, pos * 2.0 - ctrl.y),
+                })
+            }
+            PathCommand::By(PathCommandOp::QudraticCurve { to, ctrl }) => {
+                PathCommand::By(PathCommandOp::QudraticCurve {
+                    to: Vector::new(to.x, -to.y),
+                    ctrl: Vector::new(ctrl.x, -ctrl.y),
+                })
+            }
+            PathCommand::To(PathCommandOp::Arc {
+                to,
+                radii,
+                x_rotation,
+                large_arc,
+                sweep,
+            }) => PathCommand::To(PathCommandOp::Arc {
+                to: Point::new(to.x, pos * 2.0 - to.y),
+                radii: Vector::new(radii.x, -radii.y),
+                x_rotation: *x_rotation + Angle::pi(),
+                large_arc: *large_arc,
+                sweep: !*sweep,
+            }),
+            PathCommand::By(PathCommandOp::Arc {
+                to,
+                radii,
+                x_rotation,
+                large_arc,
+                sweep,
+            }) => PathCommand::By(PathCommandOp::Arc {
+                to: Vector::new(to.x, -to.y),
+                radii: Vector::new(radii.x, -radii.y),
+                x_rotation: *x_rotation + Angle::pi(),
+                large_arc: *large_arc,
+                sweep: !*sweep,
+            }),
+            _ => self.clone(),
+        }
+    }
 }
