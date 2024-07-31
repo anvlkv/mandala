@@ -10,6 +10,7 @@ pub use style::*;
 use crate::{Angle, Float, Point, Size, Transform, Vector};
 
 /// chain of path commands drawing continuous line or shape
+/// in 2D space
 ///
 /// optionally styled with feature `styled`
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

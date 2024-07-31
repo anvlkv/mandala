@@ -45,6 +45,7 @@ pistoncore-glutin_window = "0.72.0"
 piston2d-opengl_graphics = "0.85.0"
 eframe = "0.28.1"
 egui_plot = "0.28.1"
+serde_json = "1.0.121"
 
 [profile.dev.package]
 insta.opt-level = 3
