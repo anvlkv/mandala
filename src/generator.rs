@@ -486,4 +486,31 @@ mod generator_tests {
         }
         assert!(iter.next().is_none());
     }
+
+    #[test]
+    fn test_generator_snapshot() {
+        use insta::assert_snapshot;
+        use rand::rngs::SmallRng;
+
+        let rng = SmallRng::seed_from_u64(64);
+        let bounds = Rect::new(Point::new(0.0, 0.0), Size::new(10.0, 10.0));
+
+        let renderer = |_rng: &mut SmallRng, _size: Size| {
+            let mut path = Path::default();
+            path.move_to(Point::new(0.0, 0.0))
+                .line_to(Point::new(1.0, 1.0));
+            path
+        };
+
+        let mut generator = GeneratorBuilder::default()
+            .mode(GeneratorMode::XStep(1.0))
+            .renderer(renderer)
+            .rng(rng)
+            .build()
+            .unwrap();
+
+        let paths = generator.generate(bounds);
+        let svg_paths: Vec<String> = paths.iter().map(|p| p.to_svg_path_d()).collect();
+        assert_snapshot!(format!("{:?}", svg_paths));
+    }
 }
