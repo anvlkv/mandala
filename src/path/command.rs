@@ -184,40 +184,39 @@ impl PathCommand {
     }
 
     pub fn is_arc(&self) -> bool {
-        match self {
-            Self::To(PathCommandOp::Arc { .. }) | Self::By(PathCommandOp::Arc { .. }) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::To(PathCommandOp::Arc { .. }) | Self::By(PathCommandOp::Arc { .. })
+        )
     }
 
     pub fn is_line(&self) -> bool {
-        match self {
-            Self::To(PathCommandOp::Line(_)) | Self::By(PathCommandOp::Line(_)) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::To(PathCommandOp::Line(_)) | Self::By(PathCommandOp::Line(_))
+        )
     }
 
     pub fn is_cubic_curve(&self) -> bool {
-        match self {
-            Self::To(PathCommandOp::CubicCurve { .. })
-            | Self::By(PathCommandOp::CubicCurve { .. }) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::To(PathCommandOp::CubicCurve { .. }) | Self::By(PathCommandOp::CubicCurve { .. })
+        )
     }
 
     pub fn is_quadratic_curve(&self) -> bool {
-        match self {
+        matches!(
+            self,
             Self::To(PathCommandOp::QudraticCurve { .. })
-            | Self::By(PathCommandOp::QudraticCurve { .. }) => true,
-            _ => false,
-        }
+                | Self::By(PathCommandOp::QudraticCurve { .. })
+        )
     }
 
     pub fn is_close(&self) -> bool {
-        match self {
-            Self::To(PathCommandOp::ClosePath) | Self::By(PathCommandOp::ClosePath) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            Self::To(PathCommandOp::ClosePath) | Self::By(PathCommandOp::ClosePath)
+        )
     }
 
     pub fn length(&self, from: Point) -> Float {
