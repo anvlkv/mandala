@@ -226,6 +226,7 @@ impl Path {
             style: self.style.clone(),
         }
     }
+
     /// given the position of axis along `y` flip (mirror) the path
     pub fn flip_vertical(&self, pos: Float) -> Self {
         let mut transformed_commands = Vec::new();
@@ -239,13 +240,52 @@ impl Path {
         }
     }
 
-    // pub fn sampling_iter(&self, from: Option<Point>) {
-    //     let from = from.unwrap_or(Point::zero());
-    //     let lengths = self.lengths();
-    //     let total_length = lengths.iter().sum();
-    //     let len_fr = lengths.iter().map(|l| l / total_length);
+    /// generates a curve sampler function
+    ///
+    /// a sampler accepts value `t` between 0 and 1
+    /// and returns `(Point, PathCommand, Float)`
+    ///
+    /// - [Point] is the point at `t`
+    /// - [PathCommand] is the path command where the point belongs at `t`
+    /// - [Float] is the progress along that commands path
+    pub fn sampler<'s>(
+        &'s self,
+        from: Option<Point>,
+    ) -> impl Fn(Float) -> (Point, PathCommand, Float) + 's {
+        let from = from.unwrap_or(Point::zero());
+        let lengths = self.lengths();
+        let total_length: Float = lengths.iter().sum();
+        let len_fr: Vec<Float> = lengths.iter().map(|l| l / total_length).collect();
+        let commands = &self.commands;
+        move |t: Float| {
+            let (t_start, command, from, fr) = commands.iter().zip(len_fr.iter()).fold(
+                (0.0, None, from, 0.0),
+                |mut acc, (cm, fr)| {
+                    let next = acc.0 + fr;
 
-    // }
+                    if acc.1.is_none() {
+                        if next >= t {
+                            acc.1 = Some(cm);
+                            acc.3 = *fr;
+                        } else {
+                            acc.0 += fr;
+                            acc.2 = cm.to(acc.2);
+                        }
+                    }
+
+                    acc
+                },
+            );
+
+            let command = command.expect("command");
+
+            let d_t = (t - t_start) * fr;
+
+            let pt = command.sample(d_t, from);
+
+            (pt, command.clone(), d_t)
+        }
+    }
 
     fn from(&self) -> Point {
         self.commands

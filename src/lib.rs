@@ -1,8 +1,14 @@
+mod chord;
 mod generator;
+mod mandala;
 mod path;
+mod ray;
 
+pub use chord::*;
 pub use generator::*;
+pub use mandala::*;
 pub use path::*;
+pub use ray::*;
 
 #[cfg(all(feature = "f64", feature = "f32"))]
 compile_error!("only one feature at a time is allowed use 'f64' or 'f32'");
@@ -30,18 +36,6 @@ mod points {
     pub type Vector = Vector2D<Float>;
     pub type BBox = Box2D<Float>;
     pub type Transform = lyon_geom::Transform<Float>;
-
-    // use lyon_geom::{
-    //     Arc as Arc2D, CubicBezierSegment, LineSegment, QuadraticBezierSegment, SvgArc as SvgArc2D,
-    // };
-
-    // pub use lyon_geom::ArcFlags;
-
-    // pub type Arc = Arc2D<Float>;
-    // pub type Line = LineSegment<Float>;
-    // pub type QuadraticCurve = QuadraticBezierSegment<Float>;
-    // pub type CubicCurve = CubicBezierSegment<Float>;
-    // pub type SvgArc = SvgArc2D<Float>;
 }
 
 pub use points::*;

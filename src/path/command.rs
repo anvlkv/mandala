@@ -183,6 +183,14 @@ impl PathCommand {
         }
     }
 
+    pub fn unwrap_move(&self, from: Point) -> Point {
+        match self {
+            Self::To(PathCommandOp::Move(to)) => *to,
+            Self::By(PathCommandOp::Move(by)) => Point::new(from.x + by.x, from.y + by.y),
+            _ => panic!("Not a Quadratic Curve command"),
+        }
+    }
+
     pub fn is_arc(&self) -> bool {
         matches!(
             self,
@@ -216,6 +224,13 @@ impl PathCommand {
         matches!(
             self,
             Self::To(PathCommandOp::ClosePath) | Self::By(PathCommandOp::ClosePath)
+        )
+    }
+
+    pub fn is_move(&self) -> bool {
+        matches!(
+            self,
+            Self::To(PathCommandOp::Move(_)) | Self::By(PathCommandOp::Move(_))
         )
     }
 
@@ -466,5 +481,564 @@ impl PathCommand {
             }),
             _ => self.clone(),
         }
+    }
+
+    /// given the `from` [Point] and `t`
+    /// samples the path command
+    ///
+    /// returns a [Point] at `t`
+    pub fn sample(&self, t: Float, from: Point) -> Point {
+        if self.is_line() {
+            self.unwrap_line(from).sample(t)
+        } else if self.is_cubic_curve() {
+            self.unwrap_cubic_curve(from).sample(t)
+        } else if self.is_quadratic_curve() {
+            self.unwrap_quadratic_curve(from).sample(t)
+        } else if self.is_arc() {
+            let mut pt = None;
+            let mut d_t = 0.0;
+            self.unwrap_arc(from)
+                .for_each_quadratic_bezier_with_t(&mut |q, r| {
+                    if d_t + r.end >= t && pt.is_none() {
+                        let t_scale = r.end - r.start;
+                        // test it
+                        pt = Some(q.sample((t - d_t) * t_scale))
+                    } else {
+                        d_t += r.end
+                    }
+                });
+            pt.unwrap()
+        } else {
+            self.unwrap_move(from)
+        }
+    }
+
+    pub fn split(&self, t: Float, from: Point) -> (Self, Self) {
+        match self {
+            PathCommand::To(op) => match op {
+                PathCommandOp::Move(pt) => (
+                    PathCommand::To(PathCommandOp::Move(*pt)),
+                    PathCommand::To(PathCommandOp::Move(*pt)),
+                ),
+                PathCommandOp::ClosePath => (
+                    PathCommand::To(PathCommandOp::ClosePath),
+                    PathCommand::To(PathCommandOp::ClosePath),
+                ),
+                PathCommandOp::Line(_) => {
+                    let line = self.unwrap_line(from);
+                    let (l1, l2) = line.split(t);
+
+                    (
+                        PathCommand::To(PathCommandOp::Line(l1.to)),
+                        PathCommand::To(PathCommandOp::Line(l2.to)),
+                    )
+                }
+                PathCommandOp::CubicCurve { .. } => {
+                    let curve = self.unwrap_cubic_curve(from);
+                    let (c1, c2) = curve.split(t);
+                    (
+                        PathCommand::To(PathCommandOp::CubicCurve {
+                            to: c1.to,
+                            ctrl1: c1.ctrl1,
+                            ctrl2: c1.ctrl2,
+                        }),
+                        PathCommand::To(PathCommandOp::CubicCurve {
+                            to: c2.to,
+                            ctrl1: c2.ctrl1,
+                            ctrl2: c2.ctrl2,
+                        }),
+                    )
+                }
+                PathCommandOp::QudraticCurve { .. } => {
+                    let curve = self.unwrap_quadratic_curve(from);
+                    let (c1, c2) = curve.split(t);
+                    (
+                        PathCommand::To(PathCommandOp::QudraticCurve {
+                            to: c1.to,
+                            ctrl: c1.ctrl,
+                        }),
+                        PathCommand::To(PathCommandOp::QudraticCurve {
+                            to: c2.to,
+                            ctrl: c2.ctrl,
+                        }),
+                    )
+                }
+                PathCommandOp::Arc {
+                    radii,
+                    large_arc,
+                    sweep,
+                    ..
+                } => {
+                    let a = self.unwrap_arc(from);
+
+                    let (a1, a2) = a.to_arc().split(t);
+
+                    (
+                        PathCommand::To(PathCommandOp::Arc {
+                            to: a1.to(),
+                            x_rotation: a1.x_rotation,
+                            radii: radii.clone(),
+                            large_arc: *large_arc,
+                            sweep: *sweep,
+                        }),
+                        PathCommand::To(PathCommandOp::Arc {
+                            to: a2.to(),
+                            x_rotation: a2.x_rotation,
+                            radii: radii.clone(),
+                            large_arc: *large_arc,
+                            sweep: *sweep,
+                        }),
+                    )
+                }
+            },
+            PathCommand::By(op) => match op {
+                PathCommandOp::Move(v) => (
+                    PathCommand::By(PathCommandOp::Move(*v)),
+                    PathCommand::By(PathCommandOp::Move(*v)),
+                ),
+                PathCommandOp::ClosePath => (
+                    PathCommand::By(PathCommandOp::ClosePath),
+                    PathCommand::By(PathCommandOp::ClosePath),
+                ),
+                PathCommandOp::Line(_) => {
+                    let line = self.unwrap_line(from);
+                    let (l1, l2) = line.split(t);
+
+                    (
+                        PathCommand::By(PathCommandOp::Line(l1.to - from)),
+                        PathCommand::By(PathCommandOp::Line(l2.to - l1.to)),
+                    )
+                }
+                PathCommandOp::CubicCurve { .. } => {
+                    let curve = self.unwrap_cubic_curve(from);
+                    let (c1, c2) = curve.split(t);
+                    (
+                        PathCommand::By(PathCommandOp::CubicCurve {
+                            to: c1.to - from,
+                            ctrl1: c1.ctrl1 - from,
+                            ctrl2: c1.ctrl2 - from,
+                        }),
+                        PathCommand::By(PathCommandOp::CubicCurve {
+                            to: c2.to - c1.to,
+                            ctrl1: c2.ctrl1 - c1.to,
+                            ctrl2: c2.ctrl2 - c1.to,
+                        }),
+                    )
+                }
+                PathCommandOp::QudraticCurve { .. } => {
+                    let curve = self.unwrap_quadratic_curve(from);
+                    let (c1, c2) = curve.split(t);
+                    (
+                        PathCommand::By(PathCommandOp::QudraticCurve {
+                            to: c1.to - from,
+                            ctrl: c1.ctrl - from,
+                        }),
+                        PathCommand::By(PathCommandOp::QudraticCurve {
+                            to: c2.to - c1.to,
+                            ctrl: c2.ctrl - c1.to,
+                        }),
+                    )
+                }
+                PathCommandOp::Arc {
+                    radii,
+                    large_arc,
+                    sweep,
+                    ..
+                } => {
+                    let a = self.unwrap_arc(from);
+                    let (a1, a2) = a.to_arc().split(t);
+                    (
+                        PathCommand::By(PathCommandOp::Arc {
+                            to: a1.to() - from,
+                            x_rotation: a1.x_rotation,
+                            radii: radii.clone(),
+                            large_arc: *large_arc,
+                            sweep: *sweep,
+                        }),
+                        PathCommand::By(PathCommandOp::Arc {
+                            to: a2.to() - a1.to(),
+                            x_rotation: a2.x_rotation,
+                            radii: radii.clone(),
+                            large_arc: *large_arc,
+                            sweep: *sweep,
+                        }),
+                    )
+                }
+            },
+        }
+    }
+}
+
+#[cfg(test)]
+mod command_tests {
+    use super::*;
+
+    #[test]
+    fn test_to_svg_path_d() {
+        let move_cmd = PathCommand::To(PathCommandOp::Move(Point::new(10.0, 20.0)));
+        assert_eq!(move_cmd.to_svg_path_d(), "M 10,20 ");
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(30.0, 40.0)));
+        assert_eq!(line_cmd.to_svg_path_d(), "L 30,40 ");
+
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(50.0, 60.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+        assert_eq!(cubic_curve_cmd.to_svg_path_d(), "C 30,40 40,50 50,60 ");
+
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(70.0, 80.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+        assert_eq!(quadratic_curve_cmd.to_svg_path_d(), "Q 50,60 70,80 ");
+
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(90.0, 100.0),
+            radii: Vector::new(10.0, 20.0),
+            x_rotation: Angle::zero(),
+            large_arc: true,
+            sweep: false,
+        });
+        assert_eq!(arc_cmd.to_svg_path_d(), "A 10,20 0 1 0 90,100 ");
+
+        let close_path_cmd = PathCommand::To(PathCommandOp::ClosePath);
+        assert_eq!(close_path_cmd.to_svg_path_d(), "Z ");
+    }
+
+    #[test]
+    fn test_unwrap_arc() {
+        let from = Point::new(0.0, 0.0);
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(100.0, 100.0),
+            radii: Vector::new(50.0, 50.0),
+            x_rotation: Angle::degrees(0.0),
+            large_arc: false,
+            sweep: true,
+        });
+        let arc = arc_cmd.unwrap_arc(from);
+        assert_eq!(arc.from, from);
+        assert_eq!(arc.to, Point::new(100.0, 100.0));
+        assert_eq!(arc.radii, Vector::new(50.0, 50.0));
+        assert_eq!(arc.x_rotation, Angle::degrees(0.0));
+        assert_eq!(arc.flags.large_arc, false);
+        assert_eq!(arc.flags.sweep, true);
+    }
+
+    #[test]
+    fn test_unwrap_line() {
+        let from = Point::new(0.0, 0.0);
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        let line = line_cmd.unwrap_line(from);
+        assert_eq!(line.from, from);
+        assert_eq!(line.to, Point::new(100.0, 100.0));
+    }
+
+    #[test]
+    fn test_unwrap_cubic_curve() {
+        let from = Point::new(0.0, 0.0);
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+        let curve = cubic_curve_cmd.unwrap_cubic_curve(from);
+        assert_eq!(curve.from, from);
+        assert_eq!(curve.to, Point::new(100.0, 100.0));
+        assert_eq!(curve.ctrl1, Point::new(30.0, 40.0));
+        assert_eq!(curve.ctrl2, Point::new(40.0, 50.0));
+    }
+
+    #[test]
+    fn test_unwrap_quadratic_curve() {
+        let from = Point::new(0.0, 0.0);
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+        let curve = quadratic_curve_cmd.unwrap_quadratic_curve(from);
+        assert_eq!(curve.from, from);
+        assert_eq!(curve.to, Point::new(100.0, 100.0));
+        assert_eq!(curve.ctrl, Point::new(50.0, 60.0));
+    }
+
+    #[test]
+    fn test_unwrap_move() {
+        let from = Point::new(0.0, 0.0);
+        let move_cmd = PathCommand::To(PathCommandOp::Move(Point::new(100.0, 100.0)));
+        let point = move_cmd.unwrap_move(from);
+        assert_eq!(point, Point::new(100.0, 100.0));
+    }
+
+    #[test]
+    fn test_is_arc() {
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(100.0, 100.0),
+            radii: Vector::new(50.0, 50.0),
+            x_rotation: Angle::degrees(0.0),
+            large_arc: false,
+            sweep: true,
+        });
+        assert!(arc_cmd.is_arc());
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert!(!line_cmd.is_arc());
+    }
+
+    #[test]
+    fn test_is_line() {
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert!(line_cmd.is_line());
+
+        let move_cmd = PathCommand::To(PathCommandOp::Move(Point::new(100.0, 100.0)));
+        assert!(!move_cmd.is_line());
+    }
+
+    #[test]
+    fn test_is_cubic_curve() {
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+        assert!(cubic_curve_cmd.is_cubic_curve());
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert!(!line_cmd.is_cubic_curve());
+    }
+
+    #[test]
+    fn test_is_quadratic_curve() {
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+        assert!(quadratic_curve_cmd.is_quadratic_curve());
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert!(!line_cmd.is_quadratic_curve());
+    }
+
+    #[test]
+    fn test_is_close() {
+        let close_path_cmd = PathCommand::To(PathCommandOp::ClosePath);
+        assert!(close_path_cmd.is_close());
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert!(!line_cmd.is_close());
+    }
+
+    #[test]
+    fn test_is_move() {
+        let move_cmd = PathCommand::To(PathCommandOp::Move(Point::new(100.0, 100.0)));
+        assert!(move_cmd.is_move());
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert!(!line_cmd.is_move());
+    }
+
+    #[test]
+    fn test_length() {
+        let from = Point::new(0.0, 0.0);
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert_eq!(
+            line_cmd.length(from),
+            ((100.0 * 100.0 + 100.0 * 100.0) as Float).sqrt()
+        );
+
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+        assert!(cubic_curve_cmd.length(from) > 0.0);
+
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+        assert!(quadratic_curve_cmd.length(from) > 0.0);
+
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(100.0, 100.0),
+            radii: Vector::new(50.0, 50.0),
+            x_rotation: Angle::degrees(0.0),
+            large_arc: false,
+            sweep: true,
+        });
+        assert!(arc_cmd.length(from) > 0.0);
+    }
+
+    #[test]
+    fn test_to() {
+        let from = Point::new(0.0, 0.0);
+        let move_cmd = PathCommand::To(PathCommandOp::Move(Point::new(100.0, 100.0)));
+        assert_eq!(move_cmd.to(from), Point::new(100.0, 100.0));
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        assert_eq!(line_cmd.to(from), Point::new(100.0, 100.0));
+
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+        assert_eq!(cubic_curve_cmd.to(from), Point::new(100.0, 100.0));
+
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+        assert_eq!(quadratic_curve_cmd.to(from), Point::new(100.0, 100.0));
+
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(100.0, 100.0),
+            radii: Vector::new(50.0, 50.0),
+            x_rotation: Angle::degrees(0.0),
+            large_arc: false,
+            sweep: true,
+        });
+        assert_eq!(arc_cmd.to(from), Point::new(100.0, 100.0));
+    }
+
+    #[test]
+    fn test_transformed() {
+        let transform = Transform::new(2.0, 0.0, 0.0, 2.0, 0.0, 0.0);
+        let move_cmd = PathCommand::To(PathCommandOp::Move(Point::new(10.0, 20.0)));
+        let transformed_cmd = move_cmd.transformed(transform);
+        assert_eq!(
+            transformed_cmd,
+            PathCommand::To(PathCommandOp::Move(Point::new(20.0, 40.0)))
+        );
+
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(10.0, 20.0)));
+        let transformed_cmd = line_cmd.transformed(transform);
+        assert_eq!(
+            transformed_cmd,
+            PathCommand::To(PathCommandOp::Line(Point::new(20.0, 40.0)))
+        );
+
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(10.0, 20.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+        let transformed_cmd = cubic_curve_cmd.transformed(transform);
+        assert_eq!(
+            transformed_cmd,
+            PathCommand::To(PathCommandOp::CubicCurve {
+                to: Point::new(20.0, 40.0),
+                ctrl1: Point::new(60.0, 80.0),
+                ctrl2: Point::new(80.0, 100.0),
+            })
+        );
+
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(10.0, 20.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+        let transformed_cmd = quadratic_curve_cmd.transformed(transform);
+        assert_eq!(
+            transformed_cmd,
+            PathCommand::To(PathCommandOp::QudraticCurve {
+                to: Point::new(20.0, 40.0),
+                ctrl: Point::new(100.0, 120.0),
+            })
+        );
+
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(10.0, 20.0),
+            radii: Vector::new(10.0, 20.0),
+            x_rotation: Angle::degrees(30.0),
+            large_arc: true,
+            sweep: false,
+        });
+        let transformed_cmd = arc_cmd.transformed(transform);
+        assert_eq!(
+            transformed_cmd,
+            PathCommand::To(PathCommandOp::Arc {
+                to: Point::new(20.0, 40.0),
+                radii: Vector::new(20.0, 40.0),
+                x_rotation: Angle::degrees(30.0),
+                large_arc: true,
+                sweep: false,
+            })
+        );
+    }
+
+    #[test]
+    fn test_sample() {
+        let from = Point::new(0.0, 0.0);
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(100.0, 100.0),
+            radii: Vector::new(50.0, 50.0),
+            x_rotation: Angle::degrees(0.0),
+            large_arc: false,
+            sweep: false,
+        });
+
+        insta::assert_debug_snapshot!(vec![
+            arc_cmd.sample(0.5, from),
+            quadratic_curve_cmd.sample(0.5, from),
+            cubic_curve_cmd.sample(0.5, from),
+            line_cmd.sample(0.5, from),
+        ]);
+    }
+
+    #[test]
+    fn test_split() {
+        let from = Point::new(0.0, 0.0);
+        let line_cmd = PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)));
+        let (part1, part2) = line_cmd.split(0.5, from);
+        assert_eq!(
+            part1,
+            PathCommand::To(PathCommandOp::Line(Point::new(50.0, 50.0)))
+        );
+        assert_eq!(
+            part2,
+            PathCommand::To(PathCommandOp::Line(Point::new(100.0, 100.0)))
+        );
+
+        let cubic_curve_cmd = PathCommand::To(PathCommandOp::CubicCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl1: Point::new(30.0, 40.0),
+            ctrl2: Point::new(40.0, 50.0),
+        });
+        let (part1, part2) = cubic_curve_cmd.split(0.5, from);
+        assert!(part1.is_cubic_curve());
+        assert!(part2.is_cubic_curve());
+
+        let quadratic_curve_cmd = PathCommand::To(PathCommandOp::QudraticCurve {
+            to: Point::new(100.0, 100.0),
+            ctrl: Point::new(50.0, 60.0),
+        });
+        let (part1, part2) = quadratic_curve_cmd.split(0.5, from);
+        assert!(part1.is_quadratic_curve());
+        assert!(part2.is_quadratic_curve());
+
+        let arc_cmd = PathCommand::To(PathCommandOp::Arc {
+            to: Point::new(100.0, 100.0),
+            radii: Vector::new(50.0, 50.0),
+            x_rotation: Angle::degrees(0.0),
+            large_arc: false,
+            sweep: true,
+        });
+        let (part1, part2) = arc_cmd.split(0.5, from);
+        assert!(part1.is_arc());
+        assert!(part2.is_arc());
     }
 }
