@@ -4,49 +4,58 @@ description = "Set of utilities for generative radial drawing and layout"
 version = "0.3.0"
 edition = "2021"
 authors = ["a.nvlkv <a.nvlkv@pm.me>"]
-keywords = ["generative", "radial", "drawing"]
+keywords = ["generative", "radial", "recursive", "drawing"]
 
 [dependencies]
-const-primes = "0.8.7"
-derive_builder = "0.20.0"
-euclid = { version = "0.22.10", features = ["mint"] }
-lyon_geom = "1.0.5"
-ordered-float = { version = "4.0", default-features = false }
-rand = { version = "0.8.5", features = ["small_rng"] }
-rand_chacha = "0.3.1"
+# const-primes = "0.8.7"
+# derive_builder = "0.20.0"
+# euclid = { version = "0.22.10", features = ["mint"] }
+# lyon_geom = "1.0.5"
+# ordered-float = { version = "4.0", default-features = false }
+# rand = { version = "0.8.5", features = ["small_rng"] }
+# rand_chacha = "0.3.1"
 serde = { version = "1.0.204", optional = true }
-uuid = { version = "1.10.0", features = ["v4"] }
+# uuid = { version = "1.10.0", features = ["v4"] }
 pix = { version = "0.13.3", optional = true }
 cfg-if = "1.0.0"
+glam = { version = "0.28.0", features = ["mint"] }
+mint = "0.5.9"
+naga = "22.1.0"
 
 
 [features]
-default = ["f64", "serde", "styled"]
+default = ["serde", "styled", "f32", "3d"]
 f32 = []
 f64 = []
+3d = []
+2d = []
 styled = ["dep:pix"]
 serde = [
-    "euclid/serde",
-    "ordered-float/serde",
-    "rand/serde",
-    "rand_chacha/serde",
-    "const-primes/serde",
-    "lyon_geom/serialization",
-    "uuid/serde",
+    # "euclid/serde",
+    # "ordered-float/serde",
+    # "rand/serde",
+    # "rand_chacha/serde",
+    # "const-primes/serde",
+    # "lyon_geom/serialization",
+    "glam/serde",
+    "mint/serde",
     "dep:serde",
 ]
 
 
 [dev-dependencies]
 insta = "1.39.0"
-piston = "1.0.0"
-piston2d-graphics = "0.44.0"
-pistoncore-glutin_window = "0.72.0"
-piston2d-opengl_graphics = "0.85.0"
-eframe = "0.28.1"
-egui_plot = "0.28.1"
-serde_json = "1.0.121"
+# piston = "1.0.0"
+# piston2d-graphics = "0.44.0"
+# pistoncore-glutin_window = "0.72.0"
+# piston2d-opengl_graphics = "0.85.0"
+# eframe = "0.28.1"
+# egui_plot = "0.28.1"
+# serde_json = "1.0.121"
 
 [profile.dev.package]
 insta.opt-level = 3
 similar.opt-level = 3
+
+[workspace]
+members = ["mndl-macro"]

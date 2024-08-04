@@ -1,0 +1,64 @@
+---
+source: mndl-macro/tests/circle.rs
+assertion_line: 27
+expression: example.to_shader_code()
+---
+Module {
+    types: {
+        [0]: Type {
+            name: None,
+            inner: Scalar(
+                Scalar {
+                    kind: Float,
+                    width: 4,
+                },
+            ),
+        },
+        [1]: Type {
+            name: None,
+            inner: Scalar(
+                Scalar {
+                    kind: Uint,
+                    width: 4,
+                },
+            ),
+        },
+        [2]: Type {
+            name: Some(
+                "MNDL_Valued_Circle",
+            ),
+            inner: Struct {
+                members: [
+                    StructMember {
+                        name: Some(
+                            "foo",
+                        ),
+                        ty: [0],
+                        binding: None,
+                        offset: 0,
+                    },
+                    StructMember {
+                        name: Some(
+                            "bar",
+                        ),
+                        ty: [1],
+                        binding: None,
+                        offset: 4,
+                    },
+                ],
+                span: 8,
+            },
+        },
+    },
+    special_types: SpecialTypes {
+        ray_desc: None,
+        ray_intersection: None,
+        predeclared_types: {},
+    },
+    constants: {},
+    overrides: {},
+    global_variables: {},
+    global_expressions: {},
+    functions: {},
+    entry_points: [],
+}
