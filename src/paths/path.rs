@@ -64,6 +64,57 @@ impl Path {
 
         Self::new(segments)
     }
+
+    /// draws a rectangle
+    pub fn rectangle(origin: Point, size: Vector) -> Self {
+        let points = [
+            Point {
+                x: origin.x,
+                y: origin.y,
+                #[cfg(feature = "3d")]
+                z: origin.z,
+            },
+            Point {
+                x: origin.x + size.x,
+                y: origin.y,
+                #[cfg(feature = "3d")]
+                z: origin.z,
+            },
+            Point {
+                x: origin.x + size.x,
+                y: origin.y + size.y,
+                #[cfg(feature = "3d")]
+                z: origin.z,
+            },
+            Point {
+                x: origin.x,
+                y: origin.y + size.y,
+                #[cfg(feature = "3d")]
+                z: origin.z,
+            },
+        ];
+
+        let segments = vec![
+            Box::new(LineSegment {
+                start: points[0],
+                end: points[1],
+            }) as Box<dyn VectorValuedFn>,
+            Box::new(LineSegment {
+                start: points[1],
+                end: points[2],
+            }) as Box<dyn VectorValuedFn>,
+            Box::new(LineSegment {
+                start: points[2],
+                end: points[3],
+            }) as Box<dyn VectorValuedFn>,
+            Box::new(LineSegment {
+                start: points[3],
+                end: points[0],
+            }) as Box<dyn VectorValuedFn>,
+        ];
+
+        Self::new(segments)
+    }
 }
 
 impl VectorValuedFn for Path {
@@ -232,5 +283,25 @@ mod path_tests {
 
         let samples = polygon.sample_optimal();
         assert_debug_snapshot!(test_name("polygon"), samples);
+    }
+
+    #[test]
+    fn test_rectangle() {
+        let origin = Point {
+            x: 0.0,
+            y: 0.0,
+            #[cfg(feature = "3d")]
+            z: 0.0,
+        };
+        let size = Vector {
+            x: 1.0,
+            y: 1.0,
+            #[cfg(feature = "3d")]
+            z: 0.0,
+        };
+        let rectangle = Path::rectangle(origin, size);
+
+        let samples = rectangle.sample_optimal();
+        assert_debug_snapshot!(test_name("rectangle"), samples);
     }
 }
