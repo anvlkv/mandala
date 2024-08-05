@@ -2,11 +2,23 @@ use egui::{Ui, Visuals};
 use egui_plotter::EguiBackend;
 use mandala::*;
 use plotters::{
-    coord::{ranged3d::Cartesian3d, types::RangedCoordf32},
+    coord::{ranged3d::Cartesian3d, types},
     prelude::*,
 };
 
+#[cfg(feature = "f32")]
 const SIZE: f32 = 1000.0;
+
+#[cfg(feature = "f64")]
+const SIZE: f64 = 1000.0;
+
+#[cfg(feature = "f64")]
+type Coord = types::RangedCoordf64;
+
+#[cfg(feature = "f32")]
+type Coord = types::RangedCoordf32;
+
+type ChartType<'a> = ChartContext<'a, EguiBackend<'a>, Cartesian3d<Coord, Coord, Coord>>;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions::default();
@@ -313,13 +325,7 @@ impl MandalaApp {
         });
     }
 
-    fn plot_arc(
-        &self,
-        chart: &mut ChartContext<
-            EguiBackend,
-            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
-        >,
-    ) {
+    fn plot_arc(&self, chart: &mut ChartType) {
         chart
             .draw_series(LineSeries::new(
                 self.arc
@@ -342,13 +348,7 @@ impl MandalaApp {
             .label("ArcSegment");
     }
 
-    fn plot_curves(
-        &self,
-        chart: &mut ChartContext<
-            EguiBackend,
-            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
-        >,
-    ) {
+    fn plot_curves(&self, chart: &mut ChartType) {
         chart
             .draw_series(LineSeries::new(
                 self.cubic
@@ -371,13 +371,7 @@ impl MandalaApp {
             .label("Quadratic");
     }
 
-    fn plot_lines(
-        &self,
-        chart: &mut ChartContext<
-            EguiBackend,
-            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
-        >,
-    ) {
+    fn plot_lines(&self, chart: &mut ChartType) {
         chart
             .draw_series(LineSeries::new(
                 self.line
@@ -400,13 +394,7 @@ impl MandalaApp {
             .label("LineSegment");
     }
 
-    fn plot_path(
-        &self,
-        chart: &mut ChartContext<
-            EguiBackend,
-            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
-        >,
-    ) {
+    fn plot_path(&self, chart: &mut ChartType) {
         let path = mandala::Path::new(vec![
             Box::new(self.arc.clone()),
             Box::new(self.arc_segment.clone()),
@@ -461,7 +449,7 @@ impl eframe::App for MandalaApp {
                 .margin_top(200)
                 .x_label_area_size(30)
                 .y_label_area_size(30)
-                .build_cartesian_3d(0f32..SIZE, 0f32..SIZE, 0f32..SIZE)
+                .build_cartesian_3d(0.0..SIZE, 0.0..SIZE, 0.0..SIZE)
                 .unwrap();
 
             chart
