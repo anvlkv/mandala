@@ -1,0 +1,31 @@
+---
+source: src/shapes/curves.rs
+expression: "[curve.eval(0.0), curve.eval(0.25), curve.eval(0.5), curve.eval(0.75),\n        curve.eval(1.0)]"
+---
+[
+    Vector3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    },
+    Vector3 {
+        x: 0.75,
+        y: 0.75,
+        z: 0.75,
+    },
+    Vector3 {
+        x: 1.5,
+        y: 1.5,
+        z: 1.5,
+    },
+    Vector3 {
+        x: 2.25,
+        y: 2.25,
+        z: 2.25,
+    },
+    Vector3 {
+        x: 3.0,
+        y: 3.0,
+        z: 3.0,
+    },
+]

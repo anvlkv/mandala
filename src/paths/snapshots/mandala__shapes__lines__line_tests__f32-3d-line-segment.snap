@@ -1,0 +1,21 @@
+---
+source: src/shapes/lines.rs
+expression: "[line_segment.eval(0.0), line_segment.eval(0.5), line_segment.eval(1.0)]"
+---
+[
+    Vector3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    },
+    Vector3 {
+        x: 0.5,
+        y: 0.5,
+        z: 0.5,
+    },
+    Vector3 {
+        x: 1.0,
+        y: 1.0,
+        z: 1.0,
+    },
+]

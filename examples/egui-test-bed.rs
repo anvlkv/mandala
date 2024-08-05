@@ -1,200 +1,490 @@
-// use eframe::egui::{self, Widget};
-// use egui_plot::{PlotPoint, PlotPoints};
-// use mandala::*;
-// use uuid::Uuid;
+use egui::{Ui, Visuals};
+use egui_plotter::{EguiBackend, MouseConfig};
+use mandala::*;
+use plotters::{
+    coord::{ranged3d::Cartesian3d, types::RangedCoordf32},
+    prelude::*,
+};
 
-// const SIZE: f64 = 800.0;
+const SIZE: f32 = 1000.0;
 
-// fn main() -> eframe::Result {
-//     let options = eframe::NativeOptions {
-//         viewport: egui::ViewportBuilder::default().with_inner_size([SIZE as f32, SIZE as f32]),
-//         ..Default::default()
-//     };
-//     eframe::run_native(
-//         "Mandala test bed",
-//         options,
-//         Box::new(|cc| Ok(Box::<MandalaApp>::default())),
-//     )
-// }
+fn main() -> eframe::Result<()> {
+    let options = eframe::NativeOptions::default();
+    eframe::run_native(
+        "Mandala paths test bed",
+        options,
+        Box::new(|cc| Box::new(MandalaApp::new(cc))),
+    )
+}
 
-// struct Settings {
-//     layout_radius: f64,
-//     segment_radius: f64,
-//     segment_breadth: f64,
-//     segment_sweep: f64,
-// }
+#[derive(Default, PartialEq, Eq)]
+enum Tabs {
+    Arcs,
+    Curves,
+    #[default]
+    Lines,
+    Path,
+}
 
-// struct MandalaApp {
-//     artboard: Artboard,
-//     settings: Settings,
-//     id: Uuid,
-// }
+#[derive(Default)]
+struct MandalaApp {
+    tab: Tabs,
+    line: Line,
+    line_segment: LineSegment,
+    arc: SweepArc,
+    arc_segment: ArcSegment,
+    cubic: CubicCurve,
+    quad: QuadraticCurve,
+}
 
-// impl Default for MandalaApp {
-//     fn default() -> Self {
-//         let mut artboard = Artboard::new(BBox::new(Point::zero(), Point::new(SIZE, SIZE)));
-//         let settings = Settings {
-//             layout_radius: 50.0,
-//             segment_radius: 100.0,
-//             segment_breadth: 0.15,
-//             segment_sweep: Angle::frac_pi_4().radians,
-//         };
+impl MandalaApp {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        // Disable feathering as it causes artifacts
+        let context = &cc.egui_ctx;
 
-//         let mut id = None;
+        context.tessellation_options_mut(|tess_options| {
+            tess_options.feathering = false;
+        });
 
-//         artboard.draw_mandala(&mut |b| {
-//             let mut m = Mandala::new(b.clone());
-//             id = Some(m.id);
+        // Also enable light mode
+        context.set_visuals(Visuals::light());
 
-//             m.draw_epoch(|last, b| {
-//                 let mut ep = EpochBuilder::default()
-//                     .center(b.center())
-//                     .layout(EpochLayout::Circle {
-//                         radius: settings.layout_radius,
-//                     })
-//                     .outline(true)
-//                     .build()
-//                     .unwrap();
+        Self::default()
+    }
+    fn arc_settings(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.heading("SweepArc");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.arc.center.x, 0.0..=SIZE).text("center x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc.center.y, 0.0..=SIZE).text("center y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc.center.z, 0.0..=SIZE).text("center z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.arc.radius.x, 0.0..=SIZE).text("radius x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc.radius.y, 0.0..=SIZE).text("radius y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc.radius.z, 0.0..=SIZE).text("radius z"),
+                        );
+                    });
+                });
+                ui.add(
+                    egui::Slider::new(
+                        self.arc.start_angle.radians_mut(),
+                        0.0..=Angle::TAU.to_radians(),
+                    )
+                    .text("start_angle"),
+                );
+                ui.add(
+                    egui::Slider::new(
+                        self.arc.sweep_angle.radians_mut(),
+                        0.0..=Angle::TAU.to_radians(),
+                    )
+                    .text("sweep_angle"),
+                );
+            });
 
-//                 ep.draw_fill(&mut |args| {
-//                     let mut p = Path::new(PathSegment::QuadraticCurve(QuadraticCurve {
-//                         from: Point::zero(),
-//                         to: Point::new(50.0, 100.0),
-//                         ctrl: Point::new(45.0, 75.0),
-//                     }));
-//                     p.draw_next(|last| {
-//                         PathSegment::QuadraticCurve(QuadraticCurve {
-//                             from: last.to(),
-//                             to: Point::new(100.0, 0.0),
-//                             ctrl: Point::new(55.0, 75.0),
-//                         })
-//                     });
-//                     p.draw_next(|last| {
-//                         PathSegment::Line(Line {
-//                             from: last.to(),
-//                             to: Point::zero(),
-//                         })
-//                     });
+            ui.vertical(|ui| {
+                ui.heading("ArcSegment");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.start.x, 0.0..=SIZE)
+                                .text("start x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.start.y, 0.0..=SIZE)
+                                .text("start y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.start.z, 0.0..=SIZE)
+                                .text("start z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.end.x, 0.0..=SIZE)
+                                .text("end x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.end.y, 0.0..=SIZE)
+                                .text("end y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.end.z, 0.0..=SIZE)
+                                .text("end z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.radius.x, 0.0..=SIZE)
+                                .text("radius x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.radius.y, 0.0..=SIZE)
+                                .text("radius y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.arc_segment.radius.z, 0.0..=SIZE)
+                                .text("radius z"),
+                        );
+                    });
+                });
+                ui.horizontal(|ui| {
+                    ui.add(egui::Checkbox::new(
+                        &mut self.arc_segment.large_arc,
+                        "large arc",
+                    ));
+                    ui.add(egui::Checkbox::new(
+                        &mut self.arc_segment.poz_angle,
+                        "positive arc",
+                    ));
+                });
+            })
+        });
+    }
 
-//                     MandalaSegmentBuilder::default()
-//                         .center(b.center())
-//                         .r_base(settings.segment_radius)
-//                         .angle_base(Angle::zero())
-//                         .sweep(Angle::radians(settings.segment_sweep))
-//                         .breadth(settings.segment_breadth)
-//                         .draw(SegmentDrawing::Path(vec![p]))
-//                         .build()
-//                         .unwrap()
-//                 });
+    fn line_settings(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.heading("Line");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.line.origin.x, 0.0..=SIZE).text("origin x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line.origin.y, 0.0..=SIZE).text("origin y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line.origin.z, 0.0..=SIZE).text("origin z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.line.direction.x, 0.0..=SIZE)
+                                .text("direction x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line.direction.y, 0.0..=SIZE)
+                                .text("direction y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line.direction.z, 0.0..=SIZE)
+                                .text("direction z"),
+                        );
+                    });
+                });
+            });
 
-//                 ep
-//             });
+            ui.vertical(|ui| {
+                ui.heading("LineSegment");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.line_segment.start.x, 0.0..=SIZE)
+                                .text("start x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line_segment.start.y, 0.0..=SIZE)
+                                .text("start y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line_segment.start.z, 0.0..=SIZE)
+                                .text("start z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.line_segment.end.x, 0.0..=SIZE)
+                                .text("end x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line_segment.end.y, 0.0..=SIZE)
+                                .text("end y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.line_segment.end.z, 0.0..=SIZE)
+                                .text("end z"),
+                        );
+                    });
+                });
+            });
+        });
+    }
 
-//             m
-//         });
+    fn curve_settings(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.heading("Quadratic curve");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.quad.start.x, 0.0..=SIZE).text("start x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.quad.start.y, 0.0..=SIZE).text("start y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.quad.start.z, 0.0..=SIZE).text("start z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.quad.control.x, 0.0..=SIZE)
+                                .text("control x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.quad.control.y, 0.0..=SIZE)
+                                .text("control y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.quad.control.z, 0.0..=SIZE)
+                                .text("control z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(egui::Slider::new(&mut self.quad.end.x, 0.0..=SIZE).text("end x"));
+                        ui.add(egui::Slider::new(&mut self.quad.end.y, 0.0..=SIZE).text("end y"));
+                        ui.add(egui::Slider::new(&mut self.quad.end.z, 0.0..=SIZE).text("end z"));
+                    });
+                });
+            });
+            ui.vertical(|ui| {
+                ui.heading("Cubic curve");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.start.x, 0.0..=SIZE).text("start x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.start.y, 0.0..=SIZE).text("start y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.start.z, 0.0..=SIZE).text("start z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.control1.x, 0.0..=SIZE)
+                                .text("control 1 x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.control1.y, 0.0..=SIZE)
+                                .text("control 1 y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.control1.z, 0.0..=SIZE)
+                                .text("control 1 z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.control2.x, 0.0..=SIZE)
+                                .text("control 2 x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.control2.y, 0.0..=SIZE)
+                                .text("control 2 y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.cubic.control2.z, 0.0..=SIZE)
+                                .text("control 2 z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(egui::Slider::new(&mut self.cubic.end.x, 0.0..=SIZE).text("end x"));
+                        ui.add(egui::Slider::new(&mut self.cubic.end.y, 0.0..=SIZE).text("end y"));
+                        ui.add(egui::Slider::new(&mut self.cubic.end.z, 0.0..=SIZE).text("end z"));
+                    });
+                });
+            });
+        });
+    }
 
-//         Self {
-//             artboard,
-//             settings,
-//             id: id.unwrap(),
-//         }
-//     }
-// }
+    fn plot_arc(
+        &self,
+        chart: &mut ChartContext<
+            EguiBackend,
+            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
+        >,
+    ) {
+        chart
+            .draw_series(LineSeries::new(
+                self.arc
+                    .sample_optimal()
+                    .into_iter()
+                    .map(|v| (v.x, v.y, v.z)),
+                &BLUE,
+            ))
+            .unwrap()
+            .label("Arc");
+        chart
+            .draw_series(LineSeries::new(
+                self.arc_segment
+                    .sample_optimal()
+                    .into_iter()
+                    .map(|v| (v.x, v.y, v.z)),
+                &RED,
+            ))
+            .unwrap()
+            .label("ArcSegment");
+    }
 
-// impl eframe::App for MandalaApp {
-//     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-//         egui::CentralPanel::default().show(ctx, |ui| {
-//             ui.heading("Mandala test bed");
-//             ui.horizontal(|ui| {
-//                 ui.vertical(|ui| {
-//                     if ui
-//                         .add(
-//                             egui::Slider::new(&mut self.settings.layout_radius, 1.0..=SIZE / 2.0)
-//                                 .text("layout radius"),
-//                         )
-//                         .changed()
-//                     {
-//                         self.artboard.update(&self.id)(|mndl| {
-//                             if let Some(ep) = mndl.epochs.first_mut() {
-//                                 ep.layout = EpochLayout::Circle {
-//                                     radius: self.settings.layout_radius,
-//                                 }
-//                             }
-//                         });
-//                     }
-//                     if ui
-//                         .add(
-//                             egui::Slider::new(&mut self.settings.segment_radius, 1.0..=SIZE / 2.0)
-//                                 .text("segment radius"),
-//                         )
-//                         .changed()
-//                     {
-//                         self.artboard.update(&self.id)(|mndl| {
-//                             if let Some(ep) = mndl.epochs.first_mut() {
-//                                 ep.segments
-//                                     .iter_mut()
-//                                     .for_each(|s| s.r_base = self.settings.segment_radius);
-//                             }
-//                         });
-//                     }
-//                 });
-//                 ui.vertical(|ui| {
-//                     if ui
-//                         .add(
-//                             egui::Slider::new(
-//                                 &mut self.settings.segment_sweep,
-//                                 Angle::zero().radians..=Angle::two_pi().radians,
-//                             )
-//                             .text("segment sweep"),
-//                         )
-//                         .changed()
-//                     {
-//                         self.artboard.update(&self.id)(|mndl| {
-//                             if let Some(ep) = mndl.epochs.first_mut() {
-//                                 let mut s = ep.segments.first().cloned().unwrap();
-//                                 ep.segments.clear();
-//                                 s.sweep = Angle::radians(self.settings.segment_sweep);
+    fn plot_curves(
+        &self,
+        chart: &mut ChartContext<
+            EguiBackend,
+            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
+        >,
+    ) {
+        chart
+            .draw_series(LineSeries::new(
+                self.cubic
+                    .sample_optimal()
+                    .into_iter()
+                    .map(|v| (v.x, v.y, v.z)),
+                &BLUE,
+            ))
+            .unwrap()
+            .label("Cubic");
+        chart
+            .draw_series(LineSeries::new(
+                self.quad
+                    .sample_optimal()
+                    .into_iter()
+                    .map(|v| (v.x, v.y, v.z)),
+                &RED,
+            ))
+            .unwrap()
+            .label("Quadratic");
+    }
 
-//                                 ep.draw_fill(&mut |_| s.clone());
-//                             }
-//                         });
-//                     }
-//                     if ui
-//                         .add(
-//                             egui::Slider::new(&mut self.settings.segment_breadth, 0.0..=1.0)
-//                                 .text("segment breadth"),
-//                         )
-//                         .changed()
-//                     {
-//                         self.artboard.update(&self.id)(|mndl| {
-//                             if let Some(ep) = mndl.epochs.first_mut() {
-//                                 ep.segments
-//                                     .iter_mut()
-//                                     .for_each(|s| s.breadth = self.settings.segment_breadth);
-//                             }
-//                         });
-//                     }
-//                 });
-//             });
-//             ui.add_space(10.0);
-//             egui_plot::Plot::new("Mandala").show(ui, |p_ui| {
-//                 for path in self.artboard.view_paths() {
-//                     let pts = path
-//                         .flattened()
-//                         .into_iter()
-//                         .flat_map(|l| [[l.from.x, l.from.y], [l.to.x, l.to.y]])
-//                         .collect::<Vec<_>>();
+    fn plot_lines(
+        &self,
+        chart: &mut ChartContext<
+            EguiBackend,
+            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
+        >,
+    ) {
+        chart
+            .draw_series(LineSeries::new(
+                self.line
+                    .sample_optimal()
+                    .into_iter()
+                    .map(|v| (v.x, v.y, v.z)),
+                &BLUE,
+            ))
+            .unwrap()
+            .label("Line");
+        chart
+            .draw_series(LineSeries::new(
+                self.line_segment
+                    .sample_optimal()
+                    .into_iter()
+                    .map(|v| (v.x, v.y, v.z)),
+                &RED,
+            ))
+            .unwrap()
+            .label("LineSegment");
+    }
 
-//                     p_ui.line(egui_plot::Line::new(PlotPoints::new(pts)));
-//                 }
-//             });
-//             // ui.add(egui::Slider::new(&mut self.age, 0..=120).text("age"));
-//             // if ui.button("Increment").clicked() {
-//             //     self.age += 1;
-//             // }
-//             // ui.label(format!("Hello '{}', age {}", self.name, self.age));
-//         });
-//     }
-// }
+    fn plot_path(
+        &self,
+        chart: &mut ChartContext<
+            EguiBackend,
+            Cartesian3d<RangedCoordf32, RangedCoordf32, RangedCoordf32>,
+        >,
+    ) {
+        let path = mandala::Path::new(vec![
+            Box::new(self.arc.clone()),
+            Box::new(self.arc_segment.clone()),
+            Box::new(self.line_segment.clone()),
+            Box::new(self.cubic.clone()),
+            Box::new(self.quad.clone()),
+        ]);
+        chart
+            .draw_series(LineSeries::new(
+                path.sample_optimal().into_iter().map(|v| (v.x, v.y, v.z)),
+                &BLUE,
+            ))
+            .unwrap()
+            .label("Path");
+    }
+}
 
-fn main() {}
+impl eframe::App for MandalaApp {
+    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Mandala paths test bed");
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.tab, Tabs::Lines, "Lines");
+                ui.selectable_value(&mut self.tab, Tabs::Curves, "Curves");
+                ui.selectable_value(&mut self.tab, Tabs::Arcs, "Arcs");
+                ui.selectable_value(&mut self.tab, Tabs::Path, "Path");
+            });
+            match self.tab {
+                Tabs::Arcs => {
+                    self.arc_settings(ui);
+                }
+                Tabs::Curves => {
+                    self.curve_settings(ui);
+                }
+                Tabs::Lines => {
+                    self.line_settings(ui);
+                }
+                Tabs::Path => {
+                    ui.vertical(|ui| {
+                        ui.label("the test path is composed of all the other examples");
+                        ui.label("configure on other tabs to see result here");
+                    });
+                }
+            }
+
+            ui.add_space(10.0);
+
+            let root = EguiBackend::new(ui).into_drawing_area();
+
+            let mut chart = ChartBuilder::on(&root)
+                .margin(15)
+                .margin_top(200)
+                .x_label_area_size(30)
+                .y_label_area_size(30)
+                .build_cartesian_3d(0f32..SIZE, 0f32..SIZE, 0f32..SIZE)
+                .unwrap();
+
+            chart
+                .configure_axes()
+                .light_grid_style(BLACK.mix(0.15))
+                .max_light_lines(3)
+                .draw()
+                .unwrap();
+
+            match self.tab {
+                Tabs::Arcs => {
+                    self.plot_arc(&mut chart);
+                }
+                Tabs::Curves => {
+                    self.plot_curves(&mut chart);
+                }
+                Tabs::Lines => {
+                    self.plot_lines(&mut chart);
+                }
+                Tabs::Path => {
+                    self.plot_path(&mut chart);
+                }
+            }
+        });
+    }
+}

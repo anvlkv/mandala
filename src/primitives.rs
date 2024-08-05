@@ -39,3 +39,15 @@ pub type GlVec = glam::DVec2;
 
 #[cfg(all(feature = "f32", feature = "2d"))]
 pub type GlVec = glam::Vec2;
+
+#[cfg(all(feature = "f64", feature = "3d"))]
+pub type Affine = glam::DAffine3;
+
+#[cfg(all(feature = "f32", feature = "3d"))]
+pub type Affine = glam::Affine3A;
+
+#[cfg(all(feature = "f64", feature = "2d"))]
+pub type Affine = glam::DAffine2;
+
+#[cfg(all(feature = "f32", feature = "2d"))]
+pub type Affine = glam::Affine2;
