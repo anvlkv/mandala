@@ -41,14 +41,14 @@ pub trait VectorValuedFn {
     /// along the path
     fn sample_optimal(&self) -> Vec<Vector> {
         let t_step = self.optimized_t_step();
-        let num_samples = (1.0 / t_step).ceil() as usize;
+        let num_samples = (1.0 / t_step).ceil().max(2.0) as usize;
         self.sample_evenly(num_samples)
     }
 
     /// Compute the derivative of the function,
     /// which can be useful for determining tangents, normals, and curvature.
     fn derivative(&self, t: Float) -> Vector {
-        let h = Float::EPSILON.powi(2);
+        let h = Float::EPSILON;
         let t1 = t + h;
         let t2 = t - h;
         let p1: GlVec = self.eval(t1).into();
@@ -61,35 +61,33 @@ pub trait VectorValuedFn {
     /// Compute the normal vector at a given `t` value.
     fn normal(&self, t: Float) -> Vector {
         let d: GlVec = self.derivative(t).into();
-        cfg_if! {
-            if #[cfg(feature = "3d")] {
-                let magnitude = magnitude(d);
-                let normalized = d / magnitude;
-                // Use a consistent reference vector for cross product
-                let ref_vec = GlVec::new(0.0, 0.0, 1.0); // Assuming z-axis as reference
-                let cross_product = normalized.cross(ref_vec);
-                let normal_magnitude = (cross_product.x * cross_product.x + cross_product.y * cross_product.y + cross_product.z * cross_product.z).sqrt();
-                let normal = cross_product / normal_magnitude;
-                Vector {
-                    x: normal.x,
-                    y: normal.y,
-                    z: normal.z,
-                }
-            } else {
-                let magnitude = magnitude(d);
-                let normalized = d / magnitude;
-                Vector {
-                    x: -normalized.y,
-                    y: normalized.x,
-                }
-            }
+        match d.try_normalize() {
+            Some(n) => n.any_orthonormal_vector().into(),
+            None => GlVec::default().into(),
         }
     }
 
     /// finds optimal (error-free yet efficint) step for the `t` increment
     fn optimized_t_step(&self) -> Float {
-        let length = self.length();
-        1.0 / length
+        let start: GlVec = self.eval(0.0).into();
+        let mut t_step = 1.0;
+        let max_err = Float::EPSILON * self.length();
+
+        while t_step > Float::EPSILON {
+            let mid_t = 0.5 * t_step;
+            let mid_point: GlVec = self.eval(mid_t).into();
+            let end_point: GlVec = self.eval(t_step).into();
+            let linear_approx = start + (end_point - start) * mid_t;
+            let error = magnitude(mid_point - linear_approx);
+
+            if error < max_err {
+                break;
+            }
+
+            t_step *= 0.5;
+        }
+
+        t_step
     }
 }
 

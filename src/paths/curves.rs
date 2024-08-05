@@ -188,4 +188,90 @@ mod curve_tests {
             ]
         );
     }
+
+    #[test]
+    fn test_quadratic_curve_vector_valued_fn() {
+        let curve = QuadraticCurve {
+            start: Point {
+                x: 0.0,
+                y: 0.0,
+                #[cfg(feature = "3d")]
+                z: 0.0,
+            },
+            control: Point {
+                x: 1.0,
+                y: 10.0,
+                #[cfg(feature = "3d")]
+                z: 1.0,
+            },
+            end: Point {
+                x: 2.0,
+                y: 2.0,
+                #[cfg(feature = "3d")]
+                z: 2.0,
+            },
+        };
+
+        let eval_points: Vec<_> = (0..=10)
+            .map(|i| curve.eval(i as crate::Float / 10.0))
+            .collect();
+        let sample_points: Vec<_> = curve.sample_evenly(10);
+        let derivative_points: Vec<_> = (0..=10)
+            .map(|i| curve.derivative(i as crate::Float / 10.0))
+            .collect();
+        let normal_points: Vec<_> = (0..=10)
+            .map(|i| curve.normal(i as crate::Float / 10.0))
+            .collect();
+
+        assert_debug_snapshot!(
+            test_name("QuadraticCurve_VectorValuedFn"),
+            (eval_points, sample_points, derivative_points, normal_points,)
+        );
+    }
+
+    #[test]
+    fn test_cubic_curve_vector_valued_fn() {
+        let curve = CubicCurve {
+            start: Point {
+                x: 0.0,
+                y: 0.0,
+                #[cfg(feature = "3d")]
+                z: 0.0,
+            },
+            control1: Point {
+                x: 1.0,
+                y: 10.0,
+                #[cfg(feature = "3d")]
+                z: 1.0,
+            },
+            control2: Point {
+                x: 2.0,
+                y: 20.0,
+                #[cfg(feature = "3d")]
+                z: 2.0,
+            },
+            end: Point {
+                x: 3.0,
+                y: 3.0,
+                #[cfg(feature = "3d")]
+                z: 3.0,
+            },
+        };
+
+        let eval_points: Vec<_> = (0..=10)
+            .map(|i| curve.eval(i as crate::Float / 10.0))
+            .collect();
+        let sample_points: Vec<_> = curve.sample_evenly(10);
+        let derivative_points: Vec<_> = (0..=10)
+            .map(|i| curve.derivative(i as crate::Float / 10.0))
+            .collect();
+        let normal_points: Vec<_> = (0..=10)
+            .map(|i| curve.normal(i as crate::Float / 10.0))
+            .collect();
+
+        assert_debug_snapshot!(
+            test_name("CubicCurve_VectorValuedFn"),
+            (eval_points, sample_points, derivative_points, normal_points,)
+        );
+    }
 }

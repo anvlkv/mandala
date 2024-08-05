@@ -206,4 +206,78 @@ mod arc_tests {
         let points: Vec<_> = arc.sample_evenly(10);
         assert_debug_snapshot!(test_name("segment-arc"), points);
     }
+
+    #[test]
+    fn test_sweep_arc_methods() {
+        let arc = SweepArc {
+            radius: Vector {
+                x: 10.0,
+                y: 10.0,
+                #[cfg(feature = "3d")]
+                z: 0.0,
+            },
+            center: Point {
+                x: 0.0,
+                y: 0.0,
+                #[cfg(feature = "3d")]
+                z: 0.0,
+            },
+            start_angle: Angle::from_degrees(0.0),
+            sweep_angle: Angle::from_degrees(90.0),
+        };
+        let eval_points: Vec<_> = (0..=10)
+            .map(|i| arc.eval(i as crate::Float / 10.0))
+            .collect();
+        let sample_points: Vec<_> = arc.sample_evenly(10);
+        let derivative_points: Vec<_> = (0..=10)
+            .map(|i| arc.derivative(i as crate::Float / 10.0))
+            .collect();
+        let normal_points: Vec<_> = (0..=10)
+            .map(|i| arc.normal(i as crate::Float / 10.0))
+            .collect();
+        assert_debug_snapshot!(
+            test_name("sweep-arc-methods"),
+            (eval_points, sample_points, derivative_points, normal_points)
+        );
+    }
+
+    #[test]
+    fn test_arc_segment_methods() {
+        let arc = ArcSegment {
+            start: Point {
+                x: 0.0,
+                y: 10.0,
+                #[cfg(feature = "3d")]
+                z: 0.0,
+            },
+            end: Point {
+                x: 10.0,
+                y: 0.0,
+                #[cfg(feature = "3d")]
+                z: 0.0,
+            },
+            radius: Vector {
+                x: 10.0,
+                y: 10.0,
+                #[cfg(feature = "3d")]
+                z: 0.0,
+            },
+            large_arc: true,
+            poz_angle: true,
+        };
+        let eval_points: Vec<_> = (0..=10)
+            .map(|i| arc.eval(i as crate::Float / 10.0))
+            .collect();
+        let sample_points: Vec<_> = arc.sample_evenly(10);
+        let derivative_points: Vec<_> = (0..=10)
+            .map(|i| arc.derivative(i as crate::Float / 10.0))
+            .collect();
+        let normal_points: Vec<_> = (0..=10)
+            .map(|i| arc.normal(i as crate::Float / 10.0))
+            .collect();
+        assert_debug_snapshot!(
+            test_name("segment-arc-methods"),
+            (eval_points, sample_points, derivative_points, normal_points)
+        );
+    }
 }
