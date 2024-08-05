@@ -21,7 +21,7 @@ impl<'v> VectorValuedFn for Transform<'v> {
     }
 
     fn length(&self) -> crate::Float {
-        let mut samples = self.sample_evenly(1000).into_iter().map(|v| GlVec::from(v));
+        let mut samples = self.sample_evenly(1000).into_iter().map(GlVec::from);
         let mut length = 0.0;
         let mut prev = samples.next().unwrap();
 

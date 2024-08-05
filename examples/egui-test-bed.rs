@@ -1,5 +1,5 @@
 use egui::{Ui, Visuals};
-use egui_plotter::{EguiBackend, MouseConfig};
+use egui_plotter::EguiBackend;
 use mandala::*;
 use plotters::{
     coord::{ranged3d::Cartesian3d, types::RangedCoordf32},

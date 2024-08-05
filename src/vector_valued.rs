@@ -51,17 +51,9 @@ pub trait VectorValuedFn {
         let h = Float::EPSILON.powi(2);
         let t1 = t + h;
         let t2 = t - h;
-        let p1: Vector = self.eval(t1).into();
-        let p2: Vector = self.eval(t2).into();
-        let d = {
-            cfg_if! {
-                if #[cfg(feature="3d")] {
-                    GlVec::from((p1.x, p1.y, p1.z)) - GlVec::from((p2.x, p2.y, p2.z))
-                } else {
-                    GlVec::from((p1.x, p1.y)) - GlVec::from((p2.x, p2.y))
-                }
-            }
-        };
+        let p1: GlVec = self.eval(t1).into();
+        let p2: GlVec = self.eval(t2).into();
+        let d = p1 - p2;
 
         (d / (2.0 * h)).into()
     }
@@ -97,12 +89,11 @@ pub trait VectorValuedFn {
     /// finds optimal (error-free yet efficint) step for the `t` increment
     fn optimized_t_step(&self) -> Float {
         let length = self.length();
-        let t_step = 1.0 / length;
-        t_step
+        1.0 / length
     }
 }
 
-fn magnitude(d: GlVec) -> Float {
+pub(crate) fn magnitude(d: GlVec) -> Float {
     cfg_if! {
         if #[cfg(feature="3d")] {
             (d.x * d.x + d.y * d.y + d.z * d.z).sqrt()

@@ -84,17 +84,6 @@ impl Angle {
     }
 }
 
-impl Into<Vector> for Angle {
-    fn into(self) -> Vector {
-        Vector {
-            x: self.cos(),
-            y: self.sin(),
-            #[cfg(feature = "3d")]
-            z: 0.0,
-        }
-    }
-}
-
 impl From<Vector> for Angle {
     fn from(value: Vector) -> Self {
         Self::from_radians(value.y.atan2(value.x))
