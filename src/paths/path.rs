@@ -1,4 +1,6 @@
-use crate::{Float, Vector, VectorValuedFn};
+use crate::{Angle, Float, Point, Vector, VectorValuedFn};
+
+use super::LineSegment;
 
 pub type PathSegment = Box<dyn VectorValuedFn>;
 
@@ -19,6 +21,48 @@ impl Path {
     pub fn push(&mut self, segment: PathSegment) {
         self.lengths.push(segment.length());
         self.segments.push(segment);
+    }
+
+    /// draws a poligon
+    pub fn polygon(center: Point, size: Vector, n_sides: usize, start_angle: Angle) -> Self {
+        let mut segments = Vec::new();
+        let angle_increment = Angle::TAU / n_sides as Float;
+        let mut current_angle = start_angle;
+        let mut previous_point = Point {
+            x: center.x + size.x * current_angle.cos(),
+            y: center.y + size.y * current_angle.sin(),
+            #[cfg(feature = "3d")]
+            z: center.z,
+        };
+        current_angle += angle_increment;
+
+        for _ in 1..n_sides {
+            let next_point = Point {
+                x: center.x + size.x * current_angle.cos(),
+                y: center.y + size.y * current_angle.sin(),
+                #[cfg(feature = "3d")]
+                z: center.z,
+            };
+            segments.push(Box::new(LineSegment {
+                start: previous_point,
+                end: next_point,
+            }) as Box<dyn VectorValuedFn>);
+            current_angle += angle_increment;
+            previous_point = next_point;
+        }
+
+        // Close the polygon
+        segments.push(Box::new(LineSegment {
+            start: previous_point,
+            end: Point {
+                x: center.x + size.x * start_angle.cos(),
+                y: center.y + size.y * start_angle.sin(),
+                #[cfg(feature = "3d")]
+                z: center.z,
+            },
+        }) as Box<dyn VectorValuedFn>);
+
+        Self::new(segments)
     }
 }
 
@@ -166,5 +210,27 @@ mod path_tests {
 
         let samples = path.sample_optimal();
         assert_debug_snapshot!(test_name("path-optimal"), samples);
+    }
+
+    #[test]
+    fn test_polygon() {
+        let center = Point {
+            x: 0.0,
+            y: 0.0,
+            #[cfg(feature = "3d")]
+            z: 0.0,
+        };
+        let size = Vector {
+            x: 1.0,
+            y: 1.0,
+            #[cfg(feature = "3d")]
+            z: 0.0,
+        };
+        let n_sides = 4;
+        let start_angle = Angle::from_degrees(0.0);
+        let polygon = Path::polygon(center, size, n_sides, start_angle);
+
+        let samples = polygon.sample_optimal();
+        assert_debug_snapshot!(test_name("polygon"), samples);
     }
 }

@@ -9,6 +9,17 @@ pub struct SweepArc {
     pub sweep_angle: Angle,
 }
 
+impl SweepArc {
+    pub fn ellipse(center: Point, radius: Vector) -> Self {
+        Self {
+            radius,
+            center,
+            start_angle: Angle::ZERO,
+            sweep_angle: Angle::TAU,
+        }
+    }
+}
+
 impl Default for SweepArc {
     fn default() -> Self {
         Self {
