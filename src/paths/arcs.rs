@@ -99,7 +99,11 @@ impl ArcSegment {
         }
         .into();
 
+        #[cfg(feature = "3d")]
         let mut angle = start_to_end.angle_between(start_to_mid);
+
+        #[cfg(feature = "2d")]
+        let mut angle = start_to_end.angle_to(start_to_mid);
 
         if self.large_arc {
             angle = if self.poz_angle { angle } else { -angle };
@@ -125,10 +129,14 @@ impl ArcSegment {
 impl VectorValuedFn for ArcSegment {
     fn eval(&self, t: crate::Float) -> Vector {
         let center = self.arc_center();
-        let start_angle = Angle::from_radians(
-            (GlVec::from(self.end) - GlVec::from(self.start))
-                .angle_between(GlVec::from(self.radius)),
-        );
+        #[cfg(feature = "3d")]
+        let rad = (GlVec::from(self.end) - GlVec::from(self.start))
+            .angle_between(GlVec::from(self.radius));
+        #[cfg(feature = "2d")]
+        let rad =
+            (GlVec::from(self.end) - GlVec::from(self.start)).angle_to(GlVec::from(self.radius));
+
+        let start_angle = Angle::from_radians(rad);
 
         let sweep_angle = if self.large_arc {
             Angle::PI
@@ -147,10 +155,14 @@ impl VectorValuedFn for ArcSegment {
     }
 
     fn length(&self) -> crate::Float {
-        let start_angle = Angle::from_radians(
-            (GlVec::from(self.end) - GlVec::from(self.start))
-                .angle_between(GlVec::from(self.radius)),
-        );
+        #[cfg(feature = "3d")]
+        let rad = (GlVec::from(self.end) - GlVec::from(self.start))
+            .angle_between(GlVec::from(self.radius));
+        #[cfg(feature = "2d")]
+        let rad =
+            (GlVec::from(self.end) - GlVec::from(self.start)).angle_to(GlVec::from(self.radius));
+
+        let start_angle = Angle::from_radians(rad);
 
         let sweep_angle = if self.large_arc {
             Angle::PI

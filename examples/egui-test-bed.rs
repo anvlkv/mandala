@@ -2,7 +2,7 @@ use egui::{Ui, Visuals};
 use egui_plotter::EguiBackend;
 use mandala::*;
 use plotters::{
-    coord::{ranged3d::Cartesian3d, types},
+    coord::{self, types},
     prelude::*,
 };
 
@@ -18,7 +18,12 @@ type Coord = types::RangedCoordf64;
 #[cfg(feature = "f32")]
 type Coord = types::RangedCoordf32;
 
-type ChartType<'a> = ChartContext<'a, EguiBackend<'a>, Cartesian3d<Coord, Coord, Coord>>;
+#[cfg(feature = "3d")]
+type ChartType<'a> =
+    ChartContext<'a, EguiBackend<'a>, coord::ranged3d::Cartesian3d<Coord, Coord, Coord>>;
+
+#[cfg(feature = "2d")]
+type ChartType<'a> = ChartContext<'a, EguiBackend<'a>, coord::cartesian::Cartesian2d<Coord, Coord>>;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions::default();
@@ -35,7 +40,14 @@ enum Tabs {
     Curves,
     #[default]
     Lines,
-    Path,
+    Path(PathExample),
+}
+
+#[derive(PartialEq, Eq)]
+enum PathExample {
+    Segments,
+    Rect,
+    Polygon,
 }
 
 #[derive(Default)]
@@ -47,6 +59,12 @@ struct MandalaApp {
     arc_segment: ArcSegment,
     cubic: CubicCurve,
     quad: QuadraticCurve,
+    rect_origin: GlVec,
+    rect_size: GlVec,
+    polygon_center: GlVec,
+    polygon_size: GlVec,
+    polygon_sides: usize,
+    polygon_start_angle: Angle,
 }
 
 impl MandalaApp {
@@ -63,6 +81,7 @@ impl MandalaApp {
 
         Self::default()
     }
+
     fn arc_settings(&mut self, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
@@ -75,6 +94,7 @@ impl MandalaApp {
                         ui.add(
                             egui::Slider::new(&mut self.arc.center.y, 0.0..=SIZE).text("center y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.arc.center.z, 0.0..=SIZE).text("center z"),
                         );
@@ -86,6 +106,7 @@ impl MandalaApp {
                         ui.add(
                             egui::Slider::new(&mut self.arc.radius.y, 0.0..=SIZE).text("radius y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.arc.radius.z, 0.0..=SIZE).text("radius z"),
                         );
@@ -119,6 +140,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.arc_segment.start.y, 0.0..=SIZE)
                                 .text("start y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.arc_segment.start.z, 0.0..=SIZE)
                                 .text("start z"),
@@ -133,6 +155,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.arc_segment.end.y, 0.0..=SIZE)
                                 .text("end y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.arc_segment.end.z, 0.0..=SIZE)
                                 .text("end z"),
@@ -147,6 +170,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.arc_segment.radius.y, 0.0..=SIZE)
                                 .text("radius y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.arc_segment.radius.z, 0.0..=SIZE)
                                 .text("radius z"),
@@ -179,6 +203,7 @@ impl MandalaApp {
                         ui.add(
                             egui::Slider::new(&mut self.line.origin.y, 0.0..=SIZE).text("origin y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.line.origin.z, 0.0..=SIZE).text("origin z"),
                         );
@@ -192,6 +217,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.line.direction.y, 0.0..=SIZE)
                                 .text("direction y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.line.direction.z, 0.0..=SIZE)
                                 .text("direction z"),
@@ -212,6 +238,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.line_segment.start.y, 0.0..=SIZE)
                                 .text("start y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.line_segment.start.z, 0.0..=SIZE)
                                 .text("start z"),
@@ -226,6 +253,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.line_segment.end.y, 0.0..=SIZE)
                                 .text("end y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.line_segment.end.z, 0.0..=SIZE)
                                 .text("end z"),
@@ -248,6 +276,7 @@ impl MandalaApp {
                         ui.add(
                             egui::Slider::new(&mut self.quad.start.y, 0.0..=SIZE).text("start y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.quad.start.z, 0.0..=SIZE).text("start z"),
                         );
@@ -261,6 +290,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.quad.control.y, 0.0..=SIZE)
                                 .text("control y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.quad.control.z, 0.0..=SIZE)
                                 .text("control z"),
@@ -269,6 +299,7 @@ impl MandalaApp {
                     ui.vertical(|ui| {
                         ui.add(egui::Slider::new(&mut self.quad.end.x, 0.0..=SIZE).text("end x"));
                         ui.add(egui::Slider::new(&mut self.quad.end.y, 0.0..=SIZE).text("end y"));
+                        #[cfg(feature = "3d")]
                         ui.add(egui::Slider::new(&mut self.quad.end.z, 0.0..=SIZE).text("end z"));
                     });
                 });
@@ -283,6 +314,7 @@ impl MandalaApp {
                         ui.add(
                             egui::Slider::new(&mut self.cubic.start.y, 0.0..=SIZE).text("start y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.cubic.start.z, 0.0..=SIZE).text("start z"),
                         );
@@ -296,6 +328,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.cubic.control1.y, 0.0..=SIZE)
                                 .text("control 1 y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.cubic.control1.z, 0.0..=SIZE)
                                 .text("control 1 z"),
@@ -310,6 +343,7 @@ impl MandalaApp {
                             egui::Slider::new(&mut self.cubic.control2.y, 0.0..=SIZE)
                                 .text("control 2 y"),
                         );
+                        #[cfg(feature = "3d")]
                         ui.add(
                             egui::Slider::new(&mut self.cubic.control2.z, 0.0..=SIZE)
                                 .text("control 2 z"),
@@ -318,7 +352,83 @@ impl MandalaApp {
                     ui.vertical(|ui| {
                         ui.add(egui::Slider::new(&mut self.cubic.end.x, 0.0..=SIZE).text("end x"));
                         ui.add(egui::Slider::new(&mut self.cubic.end.y, 0.0..=SIZE).text("end y"));
+                        #[cfg(feature = "3d")]
                         ui.add(egui::Slider::new(&mut self.cubic.end.z, 0.0..=SIZE).text("end z"));
+                    });
+                });
+            });
+        });
+    }
+
+    fn rect_settings(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.heading("Rect");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.rect_origin.x, 0.0..=SIZE).text("origin x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.rect_origin.y, 0.0..=SIZE).text("origin y"),
+                        );
+                        #[cfg(feature = "3d")]
+                        ui.add(
+                            egui::Slider::new(&mut self.rect_origin.z, 0.0..=SIZE).text("origin z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(egui::Slider::new(&mut self.rect_size.x, 0.0..=SIZE).text("size x"));
+                        ui.add(egui::Slider::new(&mut self.rect_size.y, 0.0..=SIZE).text("size y"));
+                        #[cfg(feature = "3d")]
+                        ui.add(egui::Slider::new(&mut self.rect_size.z, 0.0..=SIZE).text("size z"));
+                    });
+                });
+            });
+        });
+    }
+
+    fn polygon_settings(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.heading("Polygon");
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.polygon_center.x, 0.0..=SIZE)
+                                .text("center x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.polygon_center.y, 0.0..=SIZE)
+                                .text("center y"),
+                        );
+                        #[cfg(feature = "3d")]
+                        ui.add(
+                            egui::Slider::new(&mut self.polygon_center.z, 0.0..=SIZE)
+                                .text("center z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(
+                            egui::Slider::new(&mut self.polygon_size.x, 0.0..=SIZE).text("size x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut self.polygon_size.y, 0.0..=SIZE).text("size y"),
+                        );
+                        #[cfg(feature = "3d")]
+                        ui.add(
+                            egui::Slider::new(&mut self.polygon_size.z, 0.0..=SIZE).text("size z"),
+                        );
+                    });
+                    ui.vertical(|ui| {
+                        ui.add(egui::Slider::new(&mut self.polygon_sides, 3..=250).text("n sides"));
+                        ui.add(
+                            egui::Slider::new(
+                                self.polygon_start_angle.radians_mut(),
+                                Angle::ZERO.to_radians()..=Angle::TAU.to_radians(),
+                            )
+                            .text("start angle"),
+                        );
                     });
                 });
             });
@@ -327,69 +437,33 @@ impl MandalaApp {
 
     fn plot_arc(&self, chart: &mut ChartType) {
         chart
-            .draw_series(LineSeries::new(
-                self.arc
-                    .sample_optimal()
-                    .into_iter()
-                    .map(|v| (v.x, v.y, v.z)),
-                &BLUE,
-            ))
+            .draw_series(LineSeries::new(make_series(self.arc), &BLUE))
             .unwrap()
             .label("Arc");
         chart
-            .draw_series(LineSeries::new(
-                self.arc_segment
-                    .sample_optimal()
-                    .into_iter()
-                    .map(|v| (v.x, v.y, v.z)),
-                &RED,
-            ))
+            .draw_series(LineSeries::new(make_series(self.arc_segment), &RED))
             .unwrap()
             .label("ArcSegment");
     }
 
     fn plot_curves(&self, chart: &mut ChartType) {
         chart
-            .draw_series(LineSeries::new(
-                self.cubic
-                    .sample_optimal()
-                    .into_iter()
-                    .map(|v| (v.x, v.y, v.z)),
-                &BLUE,
-            ))
+            .draw_series(LineSeries::new(make_series(self.cubic), &BLUE))
             .unwrap()
             .label("Cubic");
         chart
-            .draw_series(LineSeries::new(
-                self.quad
-                    .sample_optimal()
-                    .into_iter()
-                    .map(|v| (v.x, v.y, v.z)),
-                &RED,
-            ))
+            .draw_series(LineSeries::new(make_series(self.quad), &RED))
             .unwrap()
             .label("Quadratic");
     }
 
     fn plot_lines(&self, chart: &mut ChartType) {
         chart
-            .draw_series(LineSeries::new(
-                self.line
-                    .sample_optimal()
-                    .into_iter()
-                    .map(|v| (v.x, v.y, v.z)),
-                &BLUE,
-            ))
+            .draw_series(LineSeries::new(make_series(self.line), &BLUE))
             .unwrap()
             .label("Line");
         chart
-            .draw_series(LineSeries::new(
-                self.line_segment
-                    .sample_optimal()
-                    .into_iter()
-                    .map(|v| (v.x, v.y, v.z)),
-                &RED,
-            ))
+            .draw_series(LineSeries::new(make_series(self.line_segment), &RED))
             .unwrap()
             .label("LineSegment");
     }
@@ -403,12 +477,30 @@ impl MandalaApp {
             Box::new(self.quad.clone()),
         ]);
         chart
-            .draw_series(LineSeries::new(
-                path.sample_optimal().into_iter().map(|v| (v.x, v.y, v.z)),
-                &BLUE,
-            ))
+            .draw_series(LineSeries::new(make_series(path), &BLUE))
             .unwrap()
             .label("Path");
+    }
+
+    fn plot_rect(&self, chart: &mut ChartType) {
+        let plot = mandala::Path::rectangle(self.rect_origin.into(), self.rect_size.into());
+        chart
+            .draw_series(LineSeries::new(make_series(plot), &BLUE))
+            .unwrap()
+            .label("Rect");
+    }
+    fn plot_polygon(&self, chart: &mut ChartType) {
+        let plot = mandala::Path::polygon(
+            self.polygon_center.into(),
+            self.polygon_size.into(),
+            self.polygon_sides,
+            self.polygon_start_angle,
+        );
+
+        chart
+            .draw_series(LineSeries::new(make_series(plot), &BLUE))
+            .unwrap()
+            .label("Polygon");
     }
 }
 
@@ -420,9 +512,11 @@ impl eframe::App for MandalaApp {
                 ui.selectable_value(&mut self.tab, Tabs::Lines, "Lines");
                 ui.selectable_value(&mut self.tab, Tabs::Curves, "Curves");
                 ui.selectable_value(&mut self.tab, Tabs::Arcs, "Arcs");
-                ui.selectable_value(&mut self.tab, Tabs::Path, "Path");
+                ui.selectable_value(&mut self.tab, Tabs::Path(PathExample::Segments), "Path");
+                ui.selectable_value(&mut self.tab, Tabs::Path(PathExample::Rect), "Rect");
+                ui.selectable_value(&mut self.tab, Tabs::Path(PathExample::Polygon), "Polygon");
             });
-            match self.tab {
+            match &self.tab {
                 Tabs::Arcs => {
                     self.arc_settings(ui);
                 }
@@ -432,18 +526,27 @@ impl eframe::App for MandalaApp {
                 Tabs::Lines => {
                     self.line_settings(ui);
                 }
-                Tabs::Path => {
-                    ui.vertical(|ui| {
-                        ui.label("the test path is composed of all the other examples");
-                        ui.label("configure on other tabs to see result here");
-                    });
-                }
+                Tabs::Path(p) => match p {
+                    PathExample::Segments => {
+                        ui.vertical(|ui| {
+                            ui.label("the test path is composed of all the other examples");
+                            ui.label("configure on other tabs to see result here");
+                        });
+                    }
+                    PathExample::Rect => {
+                        self.rect_settings(ui);
+                    }
+                    PathExample::Polygon => {
+                        self.polygon_settings(ui);
+                    }
+                },
             }
 
             ui.add_space(10.0);
 
             let root = EguiBackend::new(ui).into_drawing_area();
 
+            #[cfg(feature = "3d")]
             let mut chart = ChartBuilder::on(&root)
                 .margin(15)
                 .margin_top(200)
@@ -452,6 +555,16 @@ impl eframe::App for MandalaApp {
                 .build_cartesian_3d(0.0..SIZE, 0.0..SIZE, 0.0..SIZE)
                 .unwrap();
 
+            #[cfg(feature = "2d")]
+            let mut chart = ChartBuilder::on(&root)
+                .margin(15)
+                .margin_top(200)
+                .x_label_area_size(30)
+                .y_label_area_size(30)
+                .build_cartesian_2d(0.0..SIZE, 0.0..SIZE)
+                .unwrap();
+
+            #[cfg(feature = "3d")]
             chart
                 .configure_axes()
                 .light_grid_style(BLACK.mix(0.15))
@@ -459,7 +572,10 @@ impl eframe::App for MandalaApp {
                 .draw()
                 .unwrap();
 
-            match self.tab {
+            #[cfg(feature = "2d")]
+            chart.configure_mesh().max_light_lines(3).draw().unwrap();
+
+            match &self.tab {
                 Tabs::Arcs => {
                     self.plot_arc(&mut chart);
                 }
@@ -469,10 +585,35 @@ impl eframe::App for MandalaApp {
                 Tabs::Lines => {
                     self.plot_lines(&mut chart);
                 }
-                Tabs::Path => {
-                    self.plot_path(&mut chart);
-                }
+                Tabs::Path(p) => match p {
+                    PathExample::Segments => {
+                        self.plot_path(&mut chart);
+                    }
+                    PathExample::Rect => {
+                        self.plot_rect(&mut chart);
+                    }
+                    PathExample::Polygon => {
+                        self.plot_polygon(&mut chart);
+                    }
+                },
             }
         });
     }
+}
+
+#[cfg(feature = "3d")]
+type SeriesItem = (Float, Float, Float);
+#[cfg(feature = "2d")]
+type SeriesItem = (Float, Float);
+
+fn make_series<V>(seg: V) -> impl Iterator<Item = SeriesItem>
+where
+    V: VectorValuedFn,
+{
+    seg.sample_optimal().into_iter().map(|v| {
+        #[cfg(feature = "3d")]
+        return (v.x, v.y, v.z);
+        #[cfg(feature = "2d")]
+        return (v.x, v.y);
+    })
 }

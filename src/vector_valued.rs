@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use cfg_if::cfg_if;
 
-use crate::{Float, GlVec, Vector};
+use crate::{Float, GlVec, Point, Vector};
 
 /// the heart and soul of the `mandala`
 ///
@@ -15,6 +15,21 @@ pub trait VectorValuedFn {
 
     /// computes the length of a segment
     fn length(&self) -> Float;
+
+    /// start point
+    fn start(&self) -> Point {
+        self.eval(0.0).into()
+    }
+
+    /// end point
+    fn end(&self) -> Point {
+        self.eval(1.0).into()
+    }
+
+    /// mid point
+    fn mid(&self) -> Point {
+        self.eval(0.5).into()
+    }
 
     /// Sample the function over a range of `t` values
     /// returning a collection of points
@@ -37,18 +52,59 @@ pub trait VectorValuedFn {
 
     /// Sample the function evenly
     /// from 0 to 1 with optimal increment of `t`,
-    /// useful for generating a uniform set of points
-    /// along the path
+    /// optimizes the increment for every next step
+    ///
+    /// the default implementation is "universal" but does't promise the best performance
     fn sample_optimal(&self) -> Vec<Vector> {
-        let t_step = self.optimized_t_step();
-        let num_samples = (1.0 / t_step).ceil().max(2.0) as usize;
-        self.sample_evenly(num_samples)
+        let mut points = Vec::new();
+
+        if self.length() == 0.0 {
+            return points;
+        }
+
+        let mut t = 0.0;
+        let mut increment;
+
+        let start_sample: GlVec = self.eval(0.0).into();
+        let mid_sample: GlVec = self.eval(0.5).into();
+        let end_sample: GlVec = self.eval(1.0).into();
+
+        let start_to_mid = mid_sample - start_sample;
+        let mid_to_end = end_sample - mid_sample;
+
+        let start_to_mid_length = magnitude(start_to_mid);
+        let mid_to_end_length = magnitude(mid_to_end);
+
+        let tolerance = (start_to_mid_length + mid_to_end_length) * Float::EPSILON;
+
+        while t < 1.0 {
+            let derivative: GlVec = self.derivative(t).into();
+            let length = magnitude(derivative);
+
+            if length > tolerance {
+                increment =
+                    (0.1 / length).clamp(Float::EPSILON.powi(2), (1.0 - t).max(Float::EPSILON));
+            } else {
+                increment = tolerance;
+            }
+
+            points.push(self.eval(t));
+            t += increment;
+
+            if t > 1.0 {
+                t = 1.0;
+                points.push(self.eval(t));
+                break;
+            }
+        }
+
+        points
     }
 
     /// Compute the derivative of the function,
     /// which can be useful for determining tangents, normals, and curvature.
     fn derivative(&self, t: Float) -> Vector {
-        let h = Float::EPSILON;
+        let h = Float::EPSILON.powf(0.5);
         let t1 = t + h;
         let t2 = t - h;
         let p1: GlVec = self.eval(t1).into();
@@ -62,35 +118,18 @@ pub trait VectorValuedFn {
     fn normal(&self, t: Float) -> Vector {
         let d: GlVec = self.derivative(t).into();
         match d.try_normalize() {
-            Some(n) => n.any_orthonormal_vector().into(),
+            Some(n) => {
+                #[cfg(feature = "3d")]
+                return n.any_orthonormal_vector().into();
+                #[cfg(feature = "2d")]
+                return n.perp().into();
+            }
             None => GlVec::default().into(),
         }
     }
-
-    /// finds optimal (error-free yet efficint) step for the `t` increment
-    fn optimized_t_step(&self) -> Float {
-        let start: GlVec = self.eval(0.0).into();
-        let mut t_step = 1.0;
-        let max_err = Float::EPSILON * self.length();
-
-        while t_step > Float::EPSILON {
-            let mid_t = 0.5 * t_step;
-            let mid_point: GlVec = self.eval(mid_t).into();
-            let end_point: GlVec = self.eval(t_step).into();
-            let linear_approx = start + (end_point - start) * mid_t;
-            let error = magnitude(mid_point - linear_approx);
-
-            if error < max_err {
-                break;
-            }
-
-            t_step *= 0.5;
-        }
-
-        t_step
-    }
 }
 
+#[allow(dead_code)]
 pub(crate) fn magnitude(d: GlVec) -> Float {
     cfg_if! {
         if #[cfg(feature="3d")] {

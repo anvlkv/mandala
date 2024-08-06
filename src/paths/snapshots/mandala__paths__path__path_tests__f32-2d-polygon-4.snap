@@ -1,0 +1,26 @@
+---
+source: src/paths/path.rs
+expression: samples
+---
+[
+    Vector2 {
+        x: 43.30127,
+        y: 25.0,
+    },
+    Vector2 {
+        x: -25.000004,
+        y: 43.30127,
+    },
+    Vector2 {
+        x: -43.30126,
+        y: -25.00001,
+    },
+    Vector2 {
+        x: 25.000017,
+        y: -43.30126,
+    },
+    Vector2 {
+        x: 43.30127,
+        y: 25.0,
+    },
+]

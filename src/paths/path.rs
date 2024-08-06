@@ -272,17 +272,20 @@ mod path_tests {
             z: 0.0,
         };
         let size = Vector {
-            x: 1.0,
-            y: 1.0,
+            x: 50.0,
+            y: 50.0,
             #[cfg(feature = "3d")]
-            z: 0.0,
+            z: 50.0,
         };
-        let n_sides = 4;
-        let start_angle = Angle::from_degrees(0.0);
-        let polygon = Path::polygon(center, size, n_sides, start_angle);
+        let start_angle = Angle::from_degrees(30.0);
 
-        let samples = polygon.sample_optimal();
-        assert_debug_snapshot!(test_name("polygon"), samples);
+        for n_sides in 3..=20 {
+            let polygon = Path::polygon(center, size, n_sides, start_angle);
+
+            let samples = polygon.sample_optimal();
+            let test = test_name(format!("polygon-{n_sides}").as_str());
+            assert_debug_snapshot!(test, samples);
+        }
     }
 
     #[test]

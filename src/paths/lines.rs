@@ -1,6 +1,4 @@
-use cfg_if::cfg_if;
-
-use crate::{GlVec, Point, Vector, VectorValuedFn};
+use crate::{magnitude, GlVec, Point, Vector, VectorValuedFn};
 
 /// flat line in space with start and end
 #[derive(Debug, Clone, Copy)]
@@ -29,17 +27,12 @@ impl VectorValuedFn for LineSegment {
     }
 
     fn length(&self) -> crate::Float {
-        let dx = self.end.x - self.start.x;
-        let dy = self.end.y - self.start.y;
+        let d = GlVec::from(self.end) - GlVec::from(self.start);
+        magnitude(d)
+    }
 
-        cfg_if! {
-            if #[cfg(feature = "3d")] {
-                let dz = self.end.z - self.start.z;
-                (dx * dx + dy * dy + dz * dz).sqrt()
-            } else {
-                (dx * dx + dy * dy).sqrt()
-            }
-        }
+    fn sample_optimal(&self) -> Vec<Vector> {
+        vec![self.start.into(), self.end.into()]
     }
 }
 
@@ -61,18 +54,10 @@ impl Default for Line {
 
 impl VectorValuedFn for Line {
     fn length(&self) -> crate::Float {
-        let dx = self.origin.x - self.direction.x;
-        let dy = self.origin.y - self.direction.y;
-
-        cfg_if! {
-            if #[cfg(feature = "3d")] {
-                let dz = self.origin.z - self.direction.z;
-                (dx * dx + dy * dy + dz * dz).sqrt()
-            } else {
-                (dx * dx + dy * dy).sqrt()
-            }
-        }
+        let d = GlVec::from(self.origin) - GlVec::from(self.direction);
+        magnitude(d)
     }
+
     fn eval(&self, t: crate::Float) -> crate::Vector {
         crate::Vector {
             x: self.origin.x + self.direction.x * t,
@@ -80,6 +65,10 @@ impl VectorValuedFn for Line {
             #[cfg(feature = "3d")]
             z: self.origin.z + self.direction.z * t,
         }
+    }
+
+    fn sample_optimal(&self) -> Vec<Vector> {
+        vec![self.origin.into(), self.end().into()]
     }
 }
 
